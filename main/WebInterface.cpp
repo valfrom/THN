@@ -2,6 +2,7 @@
 #include "WebInterfaceHtml.h"
 
 #include <ESP8266WiFi.h>
+#include <time.h>
 
 namespace interface {
 
@@ -56,6 +57,17 @@ void WebInterface::handleState() {
   }
   if (sensors.hasCoil()) {
     json += ",\"coil\":" + String(sensors.coil().value, 2);
+  }
+
+  time_t now = time(nullptr);
+  if (now > 0) {
+    struct tm *timeinfo = localtime(&now);
+    if (timeinfo != nullptr) {
+      char buffer[25];
+      strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
+      json += ",\"currentTime\":\"" + String(buffer) + "\"";
+    }
+    json += ",\"currentTimeEpoch\":" + String(static_cast<unsigned long>(now));
   }
 
   appendTemperatureLog(json, 30);
