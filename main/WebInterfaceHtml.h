@@ -22,7 +22,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       header {
         display: flex;
         justify-content: space-between;
-        align-items: baseline;
+        align-items: center;
         margin-bottom: 1.5rem;
       }
       h1 {
@@ -97,12 +97,25 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         align-items: center;
         gap: 0.5rem;
       }
+      .header-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.25rem;
+        text-align: right;
+      }
+      .header-meta div {
+        font-size: 0.9rem;
+      }
     </style>
   </head>
   <body>
     <header>
       <h1>HVAC Controller</h1>
-      <div id="wifiInfo"></div>
+      <div class="header-meta">
+        <div id="wifiInfo"></div>
+        <div id="currentTime">-</div>
+      </div>
     </header>
 
     <section id="statusSection">
@@ -225,6 +238,11 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         medium: 'Medium',
         high: 'High',
       };
+      let currentTimeState = {
+        epochSeconds: null,
+        receivedAtMs: null,
+        formatted: null,
+      };
 
       async function fetchState() {
         const response = await fetch('/api/state');
@@ -248,6 +266,22 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
               .join('')}</tr>`;
           })
           .join('');
+      }
+
+      function formatTimestamp(epochSeconds) {
+        const numeric = Number(epochSeconds);
+        if (!Number.isFinite(numeric)) {
+          return '-';
+        }
+        const date = new Date(numeric * 1000);
+        const pad = (value) => String(value).padStart(2, '0');
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1);
+        const day = pad(date.getDate());
+        const hours = pad(date.getHours());
+        const minutes = pad(date.getMinutes());
+        const seconds = pad(date.getSeconds());
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
       }
 
       function toFixedOrDash(value, digits = 1) {
@@ -276,9 +310,38 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         return `${minutes} ${minuteLabel} ${seconds} ${secondLabel}`;
       }
 
+      function renderCurrentTime() {
+        const currentTimeElement = document.getElementById('currentTime');
+        if (!currentTimeElement) {
+          return;
+        }
+        let display = '-';
+        if (Number.isFinite(currentTimeState.epochSeconds)) {
+          const elapsedMs = Date.now() - (currentTimeState.receivedAtMs ?? 0);
+          const computedEpoch = currentTimeState.epochSeconds + elapsedMs / 1000;
+          display = formatTimestamp(computedEpoch);
+        } else if (currentTimeState.formatted) {
+          display = currentTimeState.formatted;
+        }
+        currentTimeElement.textContent = display;
+      }
+
       function updateStatusBar(data) {
         const wifiInfo = document.getElementById('wifiInfo');
         wifiInfo.textContent = data.ssid && data.ip ? `${data.ssid} @ ${data.ip}` : '-';
+
+        const epochValue = Number(data.currentTimeEpoch);
+        const timeString =
+          typeof data.currentTime === 'string' ? data.currentTime.trim() : '';
+        currentTimeState = {
+          epochSeconds: Number.isFinite(epochValue) && epochValue > 0 ? epochValue : null,
+          receivedAtMs: Date.now(),
+          formatted: timeString !== '' ? timeString : null,
+        };
+        if (currentTimeState.formatted === null && currentTimeState.epochSeconds === null) {
+          currentTimeState.receivedAtMs = null;
+        }
+        renderCurrentTime();
 
         document.getElementById('systemMode').textContent =
           systemModeLabels[data.systemMode] || data.systemMode || '-';
@@ -373,6 +436,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         }
       })();
 
+      renderCurrentTime();
+      setInterval(renderCurrentTime, 1000);
       setInterval(() => {
         refreshState().catch((err) => handleRefreshError(err, false));
       }, 5000);
