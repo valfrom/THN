@@ -125,6 +125,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <div>Fan: <span id="fanMode">-</span> (<span id="fanSpeed">-</span>)</div>
         <div>Compressor: <span id="compressor">-</span></div>
         <div>Compressor Timeout: <span id="compressorTimeout">-</span></div>
+        <div>Compressor Off Timeout: <span id="compressorOffTimeout">-</span></div>
         <div>Target: <span id="target">-</span>°C</div>
         <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
         <div>Ambient: <span id="ambient">-</span>°C</div>
@@ -352,6 +353,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         document.getElementById('compressor').textContent = data.compressor ? 'Running' : 'Idle';
         document.getElementById('compressorTimeout').textContent =
           formatCompressorTimeout(data.compressorTimeout);
+        document.getElementById('compressorOffTimeout').textContent =
+          formatCompressorTimeout(data.compressorOffTimeout);
         document.getElementById('target').textContent = toFixedOrDash(data.target);
         document.getElementById('hysteresis').textContent = toFixedOrDash(data.hysteresis);
         document.getElementById('ambient').textContent = toFixedOrDash(data.ambient);

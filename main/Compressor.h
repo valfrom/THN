@@ -40,6 +40,9 @@ class Compressor {
   /** Returns the remaining restart delay in milliseconds. */
   unsigned long restartDelayRemaining() const;
 
+  /** Returns the remaining enforced runtime before the compressor may turn off. */
+  unsigned long minimumRuntimeRemaining() const;
+
  private:
   void turnOn();
   void turnOff();

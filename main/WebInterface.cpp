@@ -49,6 +49,9 @@ void WebInterface::handleState() {
   float compressorTimeoutSeconds =
       static_cast<float>(controller_.compressor().restartDelayRemaining()) / 1000.0f;
   json += ",\"compressorTimeout\":" + String(compressorTimeoutSeconds, 1);
+  float compressorOffTimeoutSeconds =
+      static_cast<float>(controller_.compressor().minimumRuntimeRemaining()) / 1000.0f;
+  json += ",\"compressorOffTimeout\":" + String(compressorOffTimeoutSeconds, 1);
   json += ",\"fanSpeed\":\"" + fanSpeedToString(controller_.fan().currentSpeed()) + "\"";
 
   const controller::SensorManager &sensors = controller_.sensors();
