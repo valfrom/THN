@@ -111,7 +111,7 @@ void HVACController::updateFanState() {
   FanSpeed desired = FanSpeed::kOff;
   switch (fanMode_) {
     case FanMode::kAuto:
-      desired = compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kOff;
+      desired = compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kLow;
       break;
     case FanMode::kOff:
       desired = FanSpeed::kOff;
