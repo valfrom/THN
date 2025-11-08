@@ -1,0 +1,134 @@
+#include "HVACController.h"
+
+#include <time.h>
+
+#include "../logging/PowerLog.h"
+#include "../logging/TemperatureLog.h"
+#include "../scheduler/ScheduleManager.h"
+
+namespace controller {
+
+HVACController::HVACController(Compressor &compressor,
+                               FanController &fan,
+                               SensorManager &sensors,
+                               scheduler::ScheduleManager &schedule,
+                               logging::TemperatureLog &temperatureLog,
+                               logging::PowerLog &powerLog)
+    : compressor_(compressor),
+      fan_(fan),
+      sensors_(sensors),
+      schedule_(schedule),
+      temperatureLog_(temperatureLog),
+      powerLog_(powerLog) {}
+
+void HVACController::begin() {
+  compressor_.begin();
+  fan_.begin();
+}
+
+void HVACController::setTargetTemperature(float target) { targetTemperature_ = target; }
+
+void HVACController::setHysteresis(float hysteresis) {
+  hysteresis_ = max(0.1f, hysteresis);
+}
+
+void HVACController::enableScheduling(bool enabled) { schedulingEnabled_ = enabled; }
+
+void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
+
+void HVACController::setSystemMode(SystemMode mode) {
+  systemMode_ = mode;
+  if (systemMode_ == SystemMode::kIdle) {
+    compressor_.requestOff();
+  }
+}
+
+void HVACController::update() {
+  sensors_.update();
+  updateTargetsFromSchedule();
+  applyControlLogic();
+  compressor_.update();
+  updateFanState();
+  logState();
+  lastControlUpdate_ = millis();
+}
+
+void HVACController::updateTargetsFromSchedule() {
+  if (!schedulingEnabled_) {
+    return;
+  }
+  time_t now = time(nullptr);
+  targetTemperature_ = schedule_.targetFor(now);
+}
+
+void HVACController::applyControlLogic() {
+  if (systemMode_ != SystemMode::kCooling) {
+    compressor_.requestOff();
+    return;
+  }
+
+  if (!sensors_.hasAmbient()) {
+    compressor_.requestOff();
+    return;
+  }
+
+  float ambient = sensors_.ambient().value;
+  float upper = targetTemperature_ + (hysteresis_ / 2.0f);
+  float lower = targetTemperature_ - (hysteresis_ / 2.0f);
+
+  if (compressor_.isRunning()) {
+    if (ambient <= lower) {
+      compressor_.requestOff();
+    } else {
+      compressor_.requestOn();
+    }
+  } else {
+    if (ambient >= upper) {
+      compressor_.requestOn();
+    } else {
+      compressor_.requestOff();
+    }
+  }
+}
+
+void HVACController::updateFanState() {
+  FanSpeed desired = FanSpeed::kOff;
+  switch (fanMode_) {
+    case FanMode::kAuto:
+      desired = compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kOff;
+      break;
+    case FanMode::kOff:
+      desired = FanSpeed::kOff;
+      break;
+    case FanMode::kLow:
+      desired = FanSpeed::kLow;
+      break;
+    case FanMode::kMedium:
+      desired = FanSpeed::kMedium;
+      break;
+    case FanMode::kHigh:
+      desired = FanSpeed::kHigh;
+      break;
+  }
+
+  fan_.setRequestedSpeed(desired);
+
+  if (systemMode_ == SystemMode::kCooling &&
+      (compressor_.isRunning() || compressor_.isRequested())) {
+    fan_.enforceMinimumSpeed(FanSpeed::kLow);
+  }
+
+  fan_.update();
+}
+
+void HVACController::logState() {
+  unsigned long timestamp = millis();
+  if (sensors_.hasAmbient() || sensors_.hasCoil()) {
+    float ambient = sensors_.hasAmbient() ? sensors_.ambient().value : NAN;
+    float coil = sensors_.hasCoil() ? sensors_.coil().value : NAN;
+    temperatureLog_.addReading(timestamp, ambient, coil);
+  }
+  powerLog_.logState(timestamp, fan_.currentSpeed(), compressor_.isRunning());
+}
+
+}  // namespace controller

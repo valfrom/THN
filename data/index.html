@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>HVAC Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0 auto;
+        padding: 1rem;
+        max-width: 960px;
+        background: #f4f7f9;
+        color: #222;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 1.5rem;
+      }
+      h1 {
+        margin: 0;
+      }
+      section {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      label {
+        display: block;
+        font-weight: bold;
+        margin-top: 0.5rem;
+      }
+      input,
+      select,
+      textarea,
+      button {
+        width: 100%;
+        padding: 0.5rem;
+        margin-top: 0.25rem;
+        box-sizing: border-box;
+        border: 1px solid #ccd6dd;
+        border-radius: 4px;
+      }
+      button {
+        background: #0078d4;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #aac6eb;
+        cursor: not-allowed;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #e5e8eb;
+        padding: 0.4rem 0.6rem;
+        text-align: left;
+        font-size: 0.9rem;
+      }
+      th {
+        background: #f0f3f5;
+      }
+      .status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+      .status div {
+        min-width: 140px;
+      }
+      .log-container {
+        max-height: 240px;
+        overflow-y: auto;
+      }
+      .inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>HVAC Controller</h1>
+      <div id="wifiInfo"></div>
+    </header>
+
+    <section id="statusSection">
+      <h2>Current Status</h2>
+      <div class="status">
+        <div>Mode: <span id="systemMode">-</span></div>
+        <div>Fan: <span id="fanMode">-</span> (<span id="fanSpeed">-</span>)</div>
+        <div>Compressor: <span id="compressor">-</span></div>
+        <div>Target: <span id="target">-</span>°C</div>
+        <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
+        <div>Ambient: <span id="ambient">-</span>°C</div>
+        <div>Coil: <span id="coil">-</span>°C</div>
+        <div>Energy: <span id="energy">-</span> Wh</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Configuration</h2>
+      <form id="configForm">
+        <div class="grid">
+          <div>
+            <label for="targetInput">Target Temperature (°C)</label>
+            <input id="targetInput" name="target" type="number" step="0.1" />
+          </div>
+          <div>
+            <label for="hysteresisInput">Hysteresis (°C)</label>
+            <input id="hysteresisInput" name="hysteresis" type="number" step="0.1" />
+          </div>
+          <div>
+            <label for="fanModeInput">Fan Mode</label>
+            <select id="fanModeInput" name="fanMode">
+              <option value="auto">Auto</option>
+              <option value="off">Off</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div>
+            <label for="systemModeInput">System Mode</label>
+            <select id="systemModeInput" name="systemMode">
+              <option value="cooling">Cooling</option>
+              <option value="idle">Idle</option>
+            </select>
+          </div>
+          <div>
+            <label>Scheduling</label>
+            <div class="inline">
+              <input id="schedulingInput" name="scheduling" type="checkbox" value="true" />
+              <span>Enable automation</span>
+            </div>
+          </div>
+        </div>
+        <div class="grid" style="margin-top: 1rem;">
+          <div>
+            <label for="weekdayInput">Weekday Schedule</label>
+            <textarea
+              id="weekdayInput"
+              name="weekday"
+              rows="4"
+              placeholder="06:00=23;09:00=26;17:30=23.5"
+            ></textarea>
+            <small>Use HH:MM=temp entries separated by semicolons.</small>
+          </div>
+          <div>
+            <label for="weekendInput">Weekend Schedule</label>
+            <textarea
+              id="weekendInput"
+              name="weekend"
+              rows="4"
+              placeholder="08:00=23.5;12:00=25"
+            ></textarea>
+          </div>
+        </div>
+        <button type="submit" style="margin-top: 1rem;">Save Configuration</button>
+      </form>
+      <div id="configStatus" style="margin-top: 0.5rem;"></div>
+    </section>
+
+    <section class="grid">
+      <div>
+        <h3>Temperature Log</h3>
+        <div class="log-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Time (ms)</th>
+                <th>Ambient</th>
+                <th>Coil</th>
+              </tr>
+            </thead>
+            <tbody id="temperatureLog"></tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <h3>Power Log</h3>
+        <div class="log-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Time (ms)</th>
+                <th>Watts</th>
+                <th>Wh</th>
+                <th>Fan</th>
+                <th>Compressor</th>
+              </tr>
+            </thead>
+            <tbody id="powerLog"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <script>
+      const configForm = document.getElementById('configForm');
+      const configStatus = document.getElementById('configStatus');
+
+      async function fetchState() {
+        const response = await fetch('/api/state');
+        if (!response.ok) {
+          throw new Error('Failed to load state');
+        }
+        return await response.json();
+      }
+
+      function scheduleToText(entries) {
+        return entries
+          .map((entry) => `${entry.time}=${Number(entry.temp).toFixed(1)}`)
+          .join(';');
+      }
+
+      function renderLogs(element, entries, fields) {
+        element.innerHTML = entries
+          .map((entry) => {
+            return `<tr>${fields
+              .map((field) => `<td>${entry[field] ?? '-'}</td>`)
+              .join('')}</tr>`;
+          })
+          .join('');
+      }
+
+      function updateStatus(data) {
+        document.getElementById('wifiInfo').textContent = `${data.ssid} @ ${data.ip}`;
+        document.getElementById('systemMode').textContent = data.systemMode;
+        document.getElementById('fanMode').textContent = data.fanMode;
+        document.getElementById('fanSpeed').textContent = data.fanSpeed;
+        document.getElementById('compressor').textContent = data.compressor ? 'Running' : 'Idle';
+        document.getElementById('target').textContent = Number(data.target).toFixed(1);
+        document.getElementById('hysteresis').textContent = Number(data.hysteresis).toFixed(1);
+        document.getElementById('ambient').textContent =
+          data.ambient !== undefined ? Number(data.ambient).toFixed(1) : '-';
+        document.getElementById('coil').textContent =
+          data.coil !== undefined ? Number(data.coil).toFixed(1) : '-';
+        document.getElementById('energy').textContent = Number(data.energyWh).toFixed(1);
+
+        document.getElementById('targetInput').value = Number(data.target).toFixed(1);
+        document.getElementById('hysteresisInput').value = Number(data.hysteresis).toFixed(1);
+        document.getElementById('fanModeInput').value = data.fanMode;
+        document.getElementById('systemModeInput').value = data.systemMode;
+        document.getElementById('schedulingInput').checked = Boolean(data.scheduling);
+        document.getElementById('weekdayInput').value = scheduleToText(data.weekday || []);
+        document.getElementById('weekendInput').value = scheduleToText(data.weekend || []);
+
+        renderLogs(document.getElementById('temperatureLog'), data.temperatureLog || [], [
+          't',
+          'ambient',
+          'coil',
+        ]);
+        renderLogs(document.getElementById('powerLog'), data.powerLog || [], [
+          't',
+          'watts',
+          'wh',
+          'fan',
+          'compressor',
+        ]);
+      }
+
+      async function refreshState() {
+        try {
+          const data = await fetchState();
+          updateStatus(data);
+          configStatus.textContent = '';
+        } catch (err) {
+          console.error(err);
+          configStatus.textContent = err.message;
+        }
+      }
+
+      configForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(configForm);
+        if (!configForm.scheduling.checked) {
+          formData.set('scheduling', 'false');
+        }
+        const payload = new URLSearchParams(formData);
+        configStatus.textContent = 'Saving…';
+        configStatus.style.color = '#333';
+        try {
+          const response = await fetch('/api/config', {
+            method: 'POST',
+            body: payload,
+          });
+          if (!response.ok) {
+            throw new Error('Failed to save configuration');
+          }
+          configStatus.textContent = 'Configuration saved.';
+          configStatus.style.color = '#006400';
+          await refreshState();
+        } catch (err) {
+          configStatus.textContent = err.message;
+          configStatus.style.color = '#b00020';
+        }
+      });
+
+      refreshState();
+      setInterval(refreshState, 5000);
+    </script>
+  </body>
+</html>
