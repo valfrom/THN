@@ -32,6 +32,13 @@ void HVACController::setHysteresis(float hysteresis) {
   hysteresis_ = max(0.1f, hysteresis);
 }
 
+void HVACController::setCompressorTemperatureLimit(float limit) {
+  if (isnan(limit) || limit < 0.0f) {
+    return;
+  }
+  compressorTemperatureLimit_ = limit;
+}
+
 void HVACController::enableScheduling(bool enabled) { schedulingEnabled_ = enabled; }
 
 void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
@@ -65,6 +72,14 @@ void HVACController::applyControlLogic() {
   if (systemMode_ != SystemMode::kCooling && systemMode_ != SystemMode::kHeating) {
     compressor_.requestOff();
     return;
+  }
+
+  if (sensors_.hasCoil()) {
+    float coilTemperature = sensors_.coil().value;
+    if (!isnan(coilTemperature) && coilTemperature >= compressorTemperatureLimit_) {
+      compressor_.forceOff();
+      return;
+    }
   }
 
   if (!sensors_.hasAmbient()) {

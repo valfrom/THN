@@ -42,6 +42,7 @@ void WebInterface::handleState() {
   json += ",\"ip\":\"" + WiFi.localIP().toString() + "\"";
   json += ",\"target\":" + String(controller_.targetTemperature(), 2);
   json += ",\"hysteresis\":" + String(controller_.hysteresis(), 2);
+  json += ",\"compressorTempLimit\":" + String(controller_.compressorTemperatureLimit(), 1);
   json += ",\"fanMode\":\"" + fanModeToString(controller_.fanMode()) + "\"";
   json += ",\"systemMode\":\"" + systemModeToString(controller_.systemMode()) + "\"";
   json += controller_.schedulingEnabled() ? ",\"scheduling\":true" : ",\"scheduling\":false";
@@ -118,6 +119,9 @@ void WebInterface::handleConfig() {
   }
   if (server_.hasArg("hysteresis")) {
     controller_.setHysteresis(server_.arg("hysteresis").toFloat());
+  }
+  if (server_.hasArg("compressorTempLimit")) {
+    controller_.setCompressorTemperatureLimit(server_.arg("compressorTempLimit").toFloat());
   }
   if (server_.hasArg("fanMode")) {
     controller_.setFanMode(fanModeFromString(server_.arg("fanMode")));
