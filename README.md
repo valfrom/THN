@@ -16,10 +16,10 @@ safety logic, scheduling, logging, and a web dashboard.
 
 | Component | Default pin | Notes |
 | --- | --- | --- |
-| Compressor relay | `D1` | Active HIGH output. Update `kCompressorRelayPin` in `src/main/main.ino` as needed. |
-| Fan low/medium/high relays | `D5` / `D6` / `D7` | Only one speed is energized at a time. |
-| Ambient temperature sensor | `D0` (OneWire) | First detected DS18B20 on the shared bus. |
-| Coil temperature sensor | `D0` (OneWire) | Second detected DS18B20 on the shared bus. |
+| Compressor relay | `D6` | Active HIGH output. Update `kCompressorRelayPin` in `src/main/main.ino` as needed. |
+| Fan low/medium/high relays | `D0` / `D1` / `D5` | Only one speed is energized at a time. |
+| Ambient temperature sensor | `D2` (OneWire) | First detected DS18B20 on the shared bus. |
+| Coil temperature sensor | `D2` (OneWire) | Second detected DS18B20 on the shared bus. |
 
 All pin assignments live near the top of [`src/main/main.ino`](src/main/main.ino). Adjust them to
 match your wiring. If you need additional GPIOs (e.g., blower enable), extend the controller
@@ -30,7 +30,7 @@ classes in `src/controller/`.
 1. Copy `include/WiFiConfig.example.h` to `include/WiFiConfig.h` and update the SSID and password
    constants. The real credentials file is ignored by Git.
 2. (Optional) Edit the default schedules in `src/main/main.ino` to match your preferences.
-3. Two DS18B20 sensors on the `D0` OneWire bus are used by default. The first discovered device
+3. Two DS18B20 sensors on the `D2` OneWire bus are used by default. The first discovered device
    becomes the ambient probe and the second (if present) is assigned to the coil. If you only have
    one sensor it will be treated as the ambient probe and coil temperatures will read `NAN`. Update
    `initializeSensors()` in `src/main/main.ino` if you need to bind sensors by address or support a

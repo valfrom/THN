@@ -29,9 +29,9 @@ using scheduler::ScheduleManager;
 
 namespace {
 // Pin configuration -- adjust for your hardware layout.
-constexpr uint8_t kCompressorRelayPin = D1;
-constexpr FanController::Pins kFanPins = {D5, D6, D7};
-constexpr uint8_t kOneWireBusPin = D0;
+constexpr uint8_t kCompressorRelayPin = D6;
+constexpr FanController::Pins kFanPins = {D0, D1, D5};
+constexpr uint8_t kOneWireBusPin = D2;
 
 constexpr unsigned long kControlIntervalMs = 1000;
 
