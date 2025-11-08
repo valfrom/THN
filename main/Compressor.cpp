@@ -11,7 +11,7 @@ Compressor::Compressor(uint8_t relayPin,
 
 void Compressor::begin() {
   pinMode(relayPin_, OUTPUT);
-  digitalWrite(relayPin_, LOW);
+  digitalWrite(relayPin_, HIGH);
   running_ = false;
   requestedOn_ = false;
   lastOffTimestamp_ = millis();
@@ -76,13 +76,13 @@ unsigned long Compressor::restartDelayRemaining() const {
 
 void Compressor::turnOn() {
   running_ = true;
-  digitalWrite(relayPin_, HIGH);
+  digitalWrite(relayPin_, LOW);
   lastOnTimestamp_ = millis();
 }
 
 void Compressor::turnOff() {
   running_ = false;
-  digitalWrite(relayPin_, LOW);
+  digitalWrite(relayPin_, HIGH);
   lastOffTimestamp_ = millis();
 }
 
