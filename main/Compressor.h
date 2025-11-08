@@ -37,6 +37,9 @@ class Compressor {
 
   unsigned long timeSinceLastOff() const;
 
+  /** Returns the remaining restart delay in milliseconds. */
+  unsigned long restartDelayRemaining() const;
+
  private:
   void turnOn();
   void turnOff();

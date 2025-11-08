@@ -45,6 +45,9 @@ void WebInterface::handleState() {
   json += ",\"systemMode\":\"" + systemModeToString(controller_.systemMode()) + "\"";
   json += controller_.schedulingEnabled() ? ",\"scheduling\":true" : ",\"scheduling\":false";
   json += controller_.compressorRunning() ? ",\"compressor\":true" : ",\"compressor\":false";
+  float compressorTimeoutSeconds =
+      static_cast<float>(controller_.compressor().restartDelayRemaining()) / 1000.0f;
+  json += ",\"compressorTimeout\":" + String(compressorTimeoutSeconds, 1);
   json += ",\"fanSpeed\":\"" + fanSpeedToString(controller_.fan().currentSpeed()) + "\"";
 
   const controller::SensorManager &sensors = controller_.sensors();

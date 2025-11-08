@@ -50,6 +50,9 @@ class HVACController {
   SensorManager &sensors() { return sensors_; }
   const SensorManager &sensors() const { return sensors_; }
 
+  Compressor &compressor() { return compressor_; }
+  const Compressor &compressor() const { return compressor_; }
+
   FanController &fan() { return fan_; }
   const FanController &fan() const { return fan_; }
 

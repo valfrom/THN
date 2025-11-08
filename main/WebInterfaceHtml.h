@@ -111,6 +111,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <div>Mode: <span id="systemMode">-</span></div>
         <div>Fan: <span id="fanMode">-</span> (<span id="fanSpeed">-</span>)</div>
         <div>Compressor: <span id="compressor">-</span></div>
+        <div>Compressor Timeout: <span id="compressorTimeout">-</span></div>
         <div>Target: <span id="target">-</span>°C</div>
         <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
         <div>Ambient: <span id="ambient">-</span>°C</div>
@@ -254,6 +255,27 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         return Number.isFinite(numeric) ? numeric.toFixed(digits) : '-';
       }
 
+      function formatCompressorTimeout(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return '-';
+        }
+        if (numeric <= 0) {
+          return 'Ready';
+        }
+        if (numeric < 60) {
+          return `${numeric.toFixed(1)} s`;
+        }
+        const minutes = Math.floor(numeric / 60);
+        const seconds = Math.round(numeric % 60);
+        const minuteLabel = minutes === 1 ? 'min' : 'mins';
+        const secondLabel = seconds === 1 ? 'sec' : 'secs';
+        if (seconds === 0) {
+          return `${minutes} ${minuteLabel}`;
+        }
+        return `${minutes} ${minuteLabel} ${seconds} ${secondLabel}`;
+      }
+
       function updateStatusBar(data) {
         const wifiInfo = document.getElementById('wifiInfo');
         wifiInfo.textContent = data.ssid && data.ip ? `${data.ssid} @ ${data.ip}` : '-';
@@ -265,6 +287,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         document.getElementById('fanSpeed').textContent =
           fanSpeedLabels[data.fanSpeed] || data.fanSpeed || '-';
         document.getElementById('compressor').textContent = data.compressor ? 'Running' : 'Idle';
+        document.getElementById('compressorTimeout').textContent =
+          formatCompressorTimeout(data.compressorTimeout);
         document.getElementById('target').textContent = toFixedOrDash(data.target);
         document.getElementById('hysteresis').textContent = toFixedOrDash(data.hysteresis);
         document.getElementById('ambient').textContent = toFixedOrDash(data.ambient);

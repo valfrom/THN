@@ -63,6 +63,17 @@ unsigned long Compressor::timeSinceLastOff() const {
                   : (millis() - lastOffTimestamp_);
 }
 
+unsigned long Compressor::restartDelayRemaining() const {
+  if (running_) {
+    return 0;
+  }
+  unsigned long elapsed = millis() - lastOffTimestamp_;
+  if (elapsed >= restartDelayMs_) {
+    return 0;
+  }
+  return restartDelayMs_ - elapsed;
+}
+
 void Compressor::turnOn() {
   running_ = true;
   digitalWrite(relayPin_, HIGH);
