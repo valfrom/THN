@@ -19,7 +19,7 @@ namespace controller {
 
 enum class FanMode : uint8_t { kAuto, kOff, kLow, kMedium, kHigh };
 
-enum class SystemMode : uint8_t { kCooling, kIdle };
+enum class SystemMode : uint8_t { kCooling, kHeating, kFanOnly, kIdle };
 
 class HVACController {
  public:

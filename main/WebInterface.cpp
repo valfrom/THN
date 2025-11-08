@@ -172,6 +172,10 @@ String WebInterface::systemModeToString(controller::SystemMode mode) {
   switch (mode) {
     case controller::SystemMode::kCooling:
       return "cooling";
+    case controller::SystemMode::kHeating:
+      return "heating";
+    case controller::SystemMode::kFanOnly:
+      return "fan";
     case controller::SystemMode::kIdle:
       return "idle";
   }
@@ -179,6 +183,12 @@ String WebInterface::systemModeToString(controller::SystemMode mode) {
 }
 
 controller::SystemMode WebInterface::systemModeFromString(const String &value) {
+  if (value == "heating") {
+    return controller::SystemMode::kHeating;
+  }
+  if (value == "fan") {
+    return controller::SystemMode::kFanOnly;
+  }
   if (value == "idle") {
     return controller::SystemMode::kIdle;
   }

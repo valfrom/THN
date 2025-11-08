@@ -135,17 +135,18 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             <label for="fanModeInput">Fan Mode</label>
             <select id="fanModeInput" name="fanMode">
               <option value="auto">Automatic</option>
-              <option value="manual_low">Manual Low</option>
-              <option value="manual_medium">Manual Medium</option>
-              <option value="manual_high">Manual High</option>
-              <option value="manual_off">Manual Off</option>
+              <option value="off">Off</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
             </select>
           </div>
           <div>
             <label for="systemModeInput">System Mode</label>
             <select id="systemModeInput" name="systemMode">
-              <option value="cool">Cooling</option>
-              <option value="fan_only">Fan Only</option>
+              <option value="cooling">Cooling</option>
+              <option value="heating">Heating</option>
+              <option value="fan">Fan Only</option>
               <option value="idle">Idle</option>
             </select>
           </div>
@@ -204,6 +205,25 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     <script>
       const configForm = document.getElementById('configForm');
       const configStatus = document.getElementById('configStatus');
+      const systemModeLabels = {
+        cooling: 'Cooling',
+        heating: 'Heating',
+        fan: 'Fan Only',
+        idle: 'Idle',
+      };
+      const fanModeLabels = {
+        auto: 'Auto',
+        off: 'Off',
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High',
+      };
+      const fanSpeedLabels = {
+        off: 'Off',
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High',
+      };
 
       async function fetchState() {
         const response = await fetch('/api/state');
@@ -229,20 +249,30 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           .join('');
       }
 
-      function updateStatus(data) {
-        document.getElementById('wifiInfo').textContent = `${data.ssid} @ ${data.ip}`;
-        document.getElementById('systemMode').textContent = data.systemMode;
-        document.getElementById('fanMode').textContent = data.fanMode;
-        document.getElementById('fanSpeed').textContent = data.fanSpeed;
-        document.getElementById('compressor').textContent = data.compressor ? 'Running' : 'Idle';
-        document.getElementById('target').textContent = Number(data.target).toFixed(1);
-        document.getElementById('hysteresis').textContent = Number(data.hysteresis).toFixed(1);
-        document.getElementById('ambient').textContent =
-          data.ambient !== undefined ? Number(data.ambient).toFixed(1) : '-';
-        document.getElementById('coil').textContent =
-          data.coil !== undefined ? Number(data.coil).toFixed(1) : '-';
-        document.getElementById('energy').textContent = Number(data.energyWh).toFixed(1);
+      function toFixedOrDash(value, digits = 1) {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric.toFixed(digits) : '-';
+      }
 
+      function updateStatusBar(data) {
+        const wifiInfo = document.getElementById('wifiInfo');
+        wifiInfo.textContent = data.ssid && data.ip ? `${data.ssid} @ ${data.ip}` : '-';
+
+        document.getElementById('systemMode').textContent =
+          systemModeLabels[data.systemMode] || data.systemMode || '-';
+        document.getElementById('fanMode').textContent =
+          fanModeLabels[data.fanMode] || data.fanMode || '-';
+        document.getElementById('fanSpeed').textContent =
+          fanSpeedLabels[data.fanSpeed] || data.fanSpeed || '-';
+        document.getElementById('compressor').textContent = data.compressor ? 'Running' : 'Idle';
+        document.getElementById('target').textContent = toFixedOrDash(data.target);
+        document.getElementById('hysteresis').textContent = toFixedOrDash(data.hysteresis);
+        document.getElementById('ambient').textContent = toFixedOrDash(data.ambient);
+        document.getElementById('coil').textContent = toFixedOrDash(data.coil);
+        document.getElementById('energy').textContent = toFixedOrDash(data.energyWh);
+      }
+
+      function updateConfigForm(data) {
         document.getElementById('targetInput').value = Number(data.target).toFixed(1);
         document.getElementById('hysteresisInput').value = Number(data.hysteresis).toFixed(1);
         document.getElementById('fanModeInput').value = data.fanMode;
@@ -250,7 +280,9 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         document.getElementById('schedulingInput').checked = Boolean(data.scheduling);
         document.getElementById('weekdayInput').value = scheduleToText(data.weekday || []);
         document.getElementById('weekendInput').value = scheduleToText(data.weekend || []);
+      }
 
+      function updateLogs(data) {
         renderLogs(document.getElementById('temperatureLog'), data.temperatureLog || [], [
           't',
           'ambient',
@@ -265,14 +297,21 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         ]);
       }
 
-      async function refreshState() {
-        try {
-          const data = await fetchState();
-          updateStatus(data);
-          configStatus.textContent = '';
-        } catch (err) {
-          console.error(err);
-          configStatus.textContent = err.message;
+      async function refreshState(options = {}) {
+        const { updateForm = false } = options;
+        const data = await fetchState();
+        updateStatusBar(data);
+        updateLogs(data);
+        if (updateForm) {
+          updateConfigForm(data);
+        }
+      }
+
+      function handleRefreshError(error, showToUser) {
+        console.error(error);
+        if (showToUser) {
+          configStatus.textContent = error.message;
+          configStatus.style.color = '#b00020';
         }
       }
 
@@ -293,17 +332,26 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           if (!response.ok) {
             throw new Error('Failed to save configuration');
           }
+          await refreshState({ updateForm: true });
           configStatus.textContent = 'Configuration saved.';
           configStatus.style.color = '#006400';
-          await refreshState();
         } catch (err) {
           configStatus.textContent = err.message;
           configStatus.style.color = '#b00020';
         }
       });
 
-      refreshState();
-      setInterval(refreshState, 5000);
+      (async () => {
+        try {
+          await refreshState({ updateForm: true });
+        } catch (err) {
+          handleRefreshError(err, true);
+        }
+      })();
+
+      setInterval(() => {
+        refreshState().catch((err) => handleRefreshError(err, false));
+      }, 5000);
     </script>
   </body>
 </html>)rawliteral";
