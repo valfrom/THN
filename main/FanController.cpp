@@ -7,7 +7,7 @@ void setPin(uint8_t pin, bool on) {
   if (pin == UINT8_MAX) {
     return;
   }
-  digitalWrite(pin, on ? HIGH : LOW);
+  digitalWrite(pin, on ? LOW : HIGH);
 }
 }  // namespace
 
@@ -16,15 +16,15 @@ FanController::FanController(const Pins &pins) : pins_(pins) {}
 void FanController::begin() {
   if (pins_.low != UINT8_MAX) {
     pinMode(pins_.low, OUTPUT);
-    digitalWrite(pins_.low, LOW);
+    digitalWrite(pins_.low, HIGH);
   }
   if (pins_.medium != UINT8_MAX) {
     pinMode(pins_.medium, OUTPUT);
-    digitalWrite(pins_.medium, LOW);
+    digitalWrite(pins_.medium, HIGH);
   }
   if (pins_.high != UINT8_MAX) {
     pinMode(pins_.high, OUTPUT);
-    digitalWrite(pins_.high, LOW);
+    digitalWrite(pins_.high, HIGH);
   }
   currentSpeed_ = FanSpeed::kOff;
 }

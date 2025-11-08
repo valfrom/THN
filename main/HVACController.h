@@ -19,7 +19,7 @@ namespace controller {
 
 enum class FanMode : uint8_t { kAuto, kOff, kLow, kMedium, kHigh };
 
-enum class SystemMode : uint8_t { kCooling, kIdle };
+enum class SystemMode : uint8_t { kCooling, kHeating, kFanOnly, kIdle };
 
 class HVACController {
  public:
@@ -49,6 +49,9 @@ class HVACController {
 
   SensorManager &sensors() { return sensors_; }
   const SensorManager &sensors() const { return sensors_; }
+
+  Compressor &compressor() { return compressor_; }
+  const Compressor &compressor() const { return compressor_; }
 
   FanController &fan() { return fan_; }
   const FanController &fan() const { return fan_; }

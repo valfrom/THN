@@ -45,6 +45,9 @@ void WebInterface::handleState() {
   json += ",\"systemMode\":\"" + systemModeToString(controller_.systemMode()) + "\"";
   json += controller_.schedulingEnabled() ? ",\"scheduling\":true" : ",\"scheduling\":false";
   json += controller_.compressorRunning() ? ",\"compressor\":true" : ",\"compressor\":false";
+  float compressorTimeoutSeconds =
+      static_cast<float>(controller_.compressor().restartDelayRemaining()) / 1000.0f;
+  json += ",\"compressorTimeout\":" + String(compressorTimeoutSeconds, 1);
   json += ",\"fanSpeed\":\"" + fanSpeedToString(controller_.fan().currentSpeed()) + "\"";
 
   const controller::SensorManager &sensors = controller_.sensors();
@@ -172,6 +175,10 @@ String WebInterface::systemModeToString(controller::SystemMode mode) {
   switch (mode) {
     case controller::SystemMode::kCooling:
       return "cooling";
+    case controller::SystemMode::kHeating:
+      return "heating";
+    case controller::SystemMode::kFanOnly:
+      return "fan";
     case controller::SystemMode::kIdle:
       return "idle";
   }
@@ -179,6 +186,12 @@ String WebInterface::systemModeToString(controller::SystemMode mode) {
 }
 
 controller::SystemMode WebInterface::systemModeFromString(const String &value) {
+  if (value == "heating") {
+    return controller::SystemMode::kHeating;
+  }
+  if (value == "fan") {
+    return controller::SystemMode::kFanOnly;
+  }
   if (value == "idle") {
     return controller::SystemMode::kIdle;
   }

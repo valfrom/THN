@@ -38,7 +38,7 @@ void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
 
 void HVACController::setSystemMode(SystemMode mode) {
   systemMode_ = mode;
-  if (systemMode_ == SystemMode::kIdle) {
+  if (systemMode_ == SystemMode::kIdle || systemMode_ == SystemMode::kFanOnly) {
     compressor_.requestOff();
   }
 }
@@ -62,7 +62,7 @@ void HVACController::updateTargetsFromSchedule() {
 }
 
 void HVACController::applyControlLogic() {
-  if (systemMode_ != SystemMode::kCooling) {
+  if (systemMode_ != SystemMode::kCooling && systemMode_ != SystemMode::kHeating) {
     compressor_.requestOff();
     return;
   }
@@ -76,17 +76,33 @@ void HVACController::applyControlLogic() {
   float upper = targetTemperature_ + (hysteresis_ / 2.0f);
   float lower = targetTemperature_ - (hysteresis_ / 2.0f);
 
-  if (compressor_.isRunning()) {
-    if (ambient <= lower) {
-      compressor_.requestOff();
+  if (systemMode_ == SystemMode::kCooling) {
+    if (compressor_.isRunning()) {
+      if (ambient <= lower) {
+        compressor_.requestOff();
+      } else {
+        compressor_.requestOn();
+      }
     } else {
-      compressor_.requestOn();
+      if (ambient >= upper) {
+        compressor_.requestOn();
+      } else {
+        compressor_.requestOff();
+      }
     }
-  } else {
-    if (ambient >= upper) {
-      compressor_.requestOn();
+  } else {  // Heating
+    if (compressor_.isRunning()) {
+      if (ambient >= upper) {
+        compressor_.requestOff();
+      } else {
+        compressor_.requestOn();
+      }
     } else {
-      compressor_.requestOff();
+      if (ambient <= lower) {
+        compressor_.requestOn();
+      } else {
+        compressor_.requestOff();
+      }
     }
   }
 }
@@ -113,7 +129,7 @@ void HVACController::updateFanState() {
 
   fan_.setRequestedSpeed(desired);
 
-  if (systemMode_ == SystemMode::kCooling &&
+  if ((systemMode_ == SystemMode::kCooling || systemMode_ == SystemMode::kHeating) &&
       (compressor_.isRunning() || compressor_.isRequested())) {
     fan_.enforceMinimumSpeed(FanSpeed::kLow);
   }
