@@ -66,13 +66,15 @@ void HVACController::setSystemMode(SystemMode mode) {
 
 void HVACController::update() {
   sensors_.update();
-  updateTargetsFromSchedule();
+  pollSchedule();
   applyControlLogic();
   compressor_.update();
   updateFanState();
   logState();
   lastControlUpdate_ = millis();
 }
+
+void HVACController::pollSchedule() { updateTargetsFromSchedule(); }
 
 void HVACController::updateTargetsFromSchedule() {
   if (!schedulingEnabled_) {

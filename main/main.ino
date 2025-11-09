@@ -307,6 +307,8 @@ void loop() {
   if (now - lastControlUpdate >= kControlIntervalMs) {
     hvac.update();
     lastControlUpdate = now;
+  } else {
+    hvac.pollSchedule();
   }
   ArduinoOTA.handle();
   webInterface.handleClient();

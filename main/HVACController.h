@@ -63,6 +63,7 @@ class HVACController {
   const FanController &fan() const { return fan_; }
 
   void update();
+  void pollSchedule();
 
   bool compressorRunning() const { return compressor_.isRunning(); }
 
