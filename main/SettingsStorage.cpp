@@ -40,7 +40,7 @@ bool SettingsStorage::load(controller::HVACController &hvac,
   while (file.available()) {
     String line = file.readStringUntil('\n');
     line.trim();
-    if (line.isEmpty() || line.startsWith('#')) {
+    if (line.isEmpty() || line.startsWith("#")) {
       continue;
     }
     int separator = line.indexOf('=');
