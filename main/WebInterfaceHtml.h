@@ -186,6 +186,17 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
               <option value="idle">Idle</option>
             </select>
           </div>
+          <div>
+            <label for="timezoneOffsetInput">Timezone Offset (minutes from UTC)</label>
+            <input
+              id="timezoneOffsetInput"
+              name="timezoneOffset"
+              type="number"
+              step="15"
+              min="-720"
+              max="840"
+            />
+          </div>
         </div>
         <label class="inline">
           <input id="schedulingInput" name="scheduling" type="checkbox" value="true" />
@@ -426,6 +437,11 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         document.getElementById('fanModeInput').value = data.fanMode;
         document.getElementById('systemModeInput').value = data.systemMode;
         document.getElementById('schedulingInput').checked = Boolean(data.scheduling);
+        const timezoneOffsetInput = document.getElementById('timezoneOffsetInput');
+        const timezoneOffsetValue = Number(data.timezoneOffset);
+        timezoneOffsetInput.value = Number.isFinite(timezoneOffsetValue)
+          ? timezoneOffsetValue
+          : 0;
         document.getElementById('weekdayInput').value = scheduleToText(data.weekday || []);
         document.getElementById('weekendInput').value = scheduleToText(data.weekend || []);
       }

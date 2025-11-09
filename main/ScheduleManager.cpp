@@ -27,8 +27,9 @@ ScheduleTarget ScheduleManager::targetFor(time_t now) const {
     return {defaultTemperature_, ScheduledMode::kUnspecified};
   }
 
+  time_t adjusted = now + static_cast<time_t>(timezoneOffsetMinutes_) * 60;
   tm timeinfo;
-  tm *timeinfoPtr = localtime(&now);
+  tm *timeinfoPtr = gmtime(&adjusted);
   if (timeinfoPtr == nullptr) {
     return {defaultTemperature_, ScheduledMode::kUnspecified};
   }
@@ -39,6 +40,17 @@ ScheduleTarget ScheduleManager::targetFor(time_t now) const {
   const ScheduleData &schedule = weekend ? weekend_ : weekday_;
   return resolveTarget(schedule, minutes,
                        {defaultTemperature_, ScheduledMode::kUnspecified});
+}
+
+void ScheduleManager::setTimezoneOffsetMinutes(int16_t offsetMinutes) {
+  constexpr int16_t kMinOffsetMinutes = -12 * 60;
+  constexpr int16_t kMaxOffsetMinutes = 14 * 60;
+  if (offsetMinutes < kMinOffsetMinutes) {
+    offsetMinutes = kMinOffsetMinutes;
+  } else if (offsetMinutes > kMaxOffsetMinutes) {
+    offsetMinutes = kMaxOffsetMinutes;
+  }
+  timezoneOffsetMinutes_ = offsetMinutes;
 }
 
 void ScheduleManager::update(controller::HVACController &hvac) const {

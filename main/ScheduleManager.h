@@ -48,6 +48,9 @@ class ScheduleManager {
 
   ScheduleTarget targetFor(time_t now) const;
 
+  void setTimezoneOffsetMinutes(int16_t offsetMinutes);
+  int16_t timezoneOffsetMinutes() const { return timezoneOffsetMinutes_; }
+
   void update(controller::HVACController &hvac) const;
 
   const ScheduleEntry *weekdayEntries(size_t &count) const;
@@ -70,6 +73,7 @@ class ScheduleManager {
   float defaultTemperature_ = 23.0f;
   ScheduleData weekday_;
   ScheduleData weekend_;
+  int16_t timezoneOffsetMinutes_ = 0;
 };
 
 }  // namespace scheduler
