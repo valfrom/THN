@@ -1,12 +1,14 @@
 #include "HVACController.h"
 
-#include <time.h>
-
 #include "PowerLog.h"
 #include "TemperatureLog.h"
 #include "ScheduleManager.h"
 
 namespace controller {
+
+namespace {
+constexpr unsigned long kControlUpdateIntervalMs = 1000;
+}
 
 HVACController::HVACController(Compressor &compressor,
                                FanController &fan,
@@ -58,38 +60,19 @@ void HVACController::setSystemMode(SystemMode mode) {
 }
 
 void HVACController::update() {
+  unsigned long now = millis();
+  if ((now - lastControlUpdate_) < kControlUpdateIntervalMs) {
+    compressor_.update();
+    updateFanState();
+    return;
+  }
+  lastControlUpdate_ = now;
+
   sensors_.update();
-  updateTargetsFromSchedule();
   applyControlLogic();
   compressor_.update();
   updateFanState();
   logState();
-  lastControlUpdate_ = millis();
-}
-
-void HVACController::updateTargetsFromSchedule() {
-  if (!schedulingEnabled_) {
-    return;
-  }
-  time_t now = time(nullptr);
-  scheduler::ScheduleTarget scheduled = schedule_.targetFor(now);
-  targetTemperature_ = scheduled.temperature;
-  switch (scheduled.mode) {
-    case scheduler::ScheduledMode::kCooling:
-      setSystemMode(SystemMode::kCooling);
-      break;
-    case scheduler::ScheduledMode::kHeating:
-      setSystemMode(SystemMode::kHeating);
-      break;
-    case scheduler::ScheduledMode::kFanOnly:
-      setSystemMode(SystemMode::kFanOnly);
-      break;
-    case scheduler::ScheduledMode::kIdle:
-      setSystemMode(SystemMode::kIdle);
-      break;
-    case scheduler::ScheduledMode::kUnspecified:
-      break;
-  }
 }
 
 void HVACController::applyControlLogic() {

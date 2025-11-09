@@ -1,5 +1,7 @@
 #include "ScheduleManager.h"
 
+#include "HVACController.h"
+
 namespace scheduler {
 
 namespace {
@@ -25,8 +27,9 @@ ScheduleTarget ScheduleManager::targetFor(time_t now) const {
     return {defaultTemperature_, ScheduledMode::kUnspecified};
   }
 
+  time_t adjusted = now + static_cast<time_t>(timezoneOffsetMinutes_) * 60;
   tm timeinfo;
-  tm *timeinfoPtr = localtime(&now);
+  tm *timeinfoPtr = gmtime(&adjusted);
   if (timeinfoPtr == nullptr) {
     return {defaultTemperature_, ScheduledMode::kUnspecified};
   }
@@ -37,6 +40,61 @@ ScheduleTarget ScheduleManager::targetFor(time_t now) const {
   const ScheduleData &schedule = weekend ? weekend_ : weekday_;
   return resolveTarget(schedule, minutes,
                        {defaultTemperature_, ScheduledMode::kUnspecified});
+}
+
+void ScheduleManager::setTimezoneOffsetMinutes(int16_t offsetMinutes) {
+  constexpr int16_t kMinOffsetMinutes = -12 * 60;
+  constexpr int16_t kMaxOffsetMinutes = 14 * 60;
+  if (offsetMinutes < kMinOffsetMinutes) {
+    offsetMinutes = kMinOffsetMinutes;
+  } else if (offsetMinutes > kMaxOffsetMinutes) {
+    offsetMinutes = kMaxOffsetMinutes;
+  }
+  timezoneOffsetMinutes_ = offsetMinutes;
+}
+
+void ScheduleManager::setTimezoneOffsetHours(float offsetHours) {
+  constexpr float kMinOffsetHours = -12.0f;
+  constexpr float kMaxOffsetHours = 14.0f;
+  if (offsetHours < kMinOffsetHours) {
+    offsetHours = kMinOffsetHours;
+  } else if (offsetHours > kMaxOffsetHours) {
+    offsetHours = kMaxOffsetHours;
+  }
+
+  float scaled = offsetHours * 60.0f;
+  int16_t roundedMinutes =
+      static_cast<int16_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
+  setTimezoneOffsetMinutes(roundedMinutes);
+}
+
+float ScheduleManager::timezoneOffsetHours() const {
+  return static_cast<float>(timezoneOffsetMinutes_) / 60.0f;
+}
+
+void ScheduleManager::update(controller::HVACController &hvac) const {
+  if (!hvac.schedulingEnabled()) {
+    return;
+  }
+
+  ScheduleTarget scheduled = targetFor(time(nullptr));
+  hvac.setTargetTemperature(scheduled.temperature);
+  switch (scheduled.mode) {
+    case ScheduledMode::kCooling:
+      hvac.setSystemMode(controller::SystemMode::kCooling);
+      break;
+    case ScheduledMode::kHeating:
+      hvac.setSystemMode(controller::SystemMode::kHeating);
+      break;
+    case ScheduledMode::kFanOnly:
+      hvac.setSystemMode(controller::SystemMode::kFanOnly);
+      break;
+    case ScheduledMode::kIdle:
+      hvac.setSystemMode(controller::SystemMode::kIdle);
+      break;
+    case ScheduledMode::kUnspecified:
+      break;
+  }
 }
 
 const ScheduleEntry *ScheduleManager::weekdayEntries(size_t &count) const {

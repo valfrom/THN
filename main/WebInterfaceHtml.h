@@ -186,6 +186,17 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
               <option value="idle">Idle</option>
             </select>
           </div>
+          <div>
+            <label for="timezoneOffsetInput">Timezone Offset (hours from UTC)</label>
+            <input
+              id="timezoneOffsetInput"
+              name="timezoneOffset"
+              type="number"
+              step="0.25"
+              min="-12"
+              max="14"
+            />
+          </div>
         </div>
         <label class="inline">
           <input id="schedulingInput" name="scheduling" type="checkbox" value="true" />
@@ -255,6 +266,9 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     <script>
       const configForm = document.getElementById('configForm');
       const configStatus = document.getElementById('configStatus');
+      const timezoneOffsetInput = document.getElementById('timezoneOffsetInput');
+      const detectedTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
+      let timezoneOffsetAutoApplied = false;
       const systemModeLabels = {
         cooling: 'Cooling',
         heating: 'Heating',
@@ -328,6 +342,27 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       function toFixedOrDash(value, digits = 1) {
         const numeric = Number(value);
         return Number.isFinite(numeric) ? numeric.toFixed(digits) : '-';
+      }
+
+      function formatOffsetHours(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return '';
+        }
+        const rounded = Math.round(numeric * 100) / 100;
+        if (Number.isInteger(rounded)) {
+          return String(rounded);
+        }
+        return rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+      }
+
+      if (timezoneOffsetInput) {
+        const detectedFormatted = formatOffsetHours(detectedTimezoneOffsetHours);
+        if (detectedFormatted !== '') {
+          timezoneOffsetInput.placeholder = detectedFormatted;
+          timezoneOffsetInput.title = `Detected from browser: ${detectedFormatted} hours from UTC`;
+          timezoneOffsetInput.value = detectedFormatted;
+        }
       }
 
       function formatCompressorTimeout(value) {
@@ -426,6 +461,26 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         document.getElementById('fanModeInput').value = data.fanMode;
         document.getElementById('systemModeInput').value = data.systemMode;
         document.getElementById('schedulingInput').checked = Boolean(data.scheduling);
+        if (timezoneOffsetInput) {
+          const timezoneOffsetValue = Number(data.timezoneOffset);
+          const detectedFormatted = formatOffsetHours(detectedTimezoneOffsetHours);
+          let displayValue = '';
+          if (Number.isFinite(timezoneOffsetValue)) {
+            displayValue = formatOffsetHours(timezoneOffsetValue);
+          }
+          if (!timezoneOffsetAutoApplied) {
+            const shouldUseDetected =
+              !Number.isFinite(timezoneOffsetValue) || Math.abs(timezoneOffsetValue) < 0.01;
+            if (shouldUseDetected && detectedFormatted !== '') {
+              displayValue = detectedFormatted;
+            }
+            timezoneOffsetAutoApplied = true;
+          }
+          if (displayValue === '' && detectedFormatted !== '') {
+            displayValue = detectedFormatted;
+          }
+          timezoneOffsetInput.value = displayValue;
+        }
         document.getElementById('weekdayInput').value = scheduleToText(data.weekday || []);
         document.getElementById('weekendInput').value = scheduleToText(data.weekend || []);
       }

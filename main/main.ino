@@ -34,8 +34,6 @@ constexpr uint8_t kCompressorRelayPin = 16;   // GPIO5 (D0)
 constexpr FanController::Pins kFanPins = {5, 14, 12};  // GPIO5/14/12 (D1/D5/D6)
 constexpr uint8_t kOneWireBusPin = 4;        // GPIO4 (D2)
 
-constexpr unsigned long kControlIntervalMs = 1000;
-
 OneWire oneWire(kOneWireBusPin);
 DallasTemperature dallasSensors(&oneWire);
 
@@ -124,8 +122,6 @@ const ScheduleEntry kDefaultWeekend[] = {
     ScheduleEntry(18, 0, 23.0f, ScheduledMode::kCooling),
     ScheduleEntry(23, 0, 25.5f, ScheduledMode::kIdle),
 };
-
-unsigned long lastControlUpdate = 0;
 
 void connectWiFi() {
   WiFi.mode(WIFI_STA);
@@ -303,12 +299,8 @@ void setup() {
 }
 
 void loop() {
-  unsigned long now = millis();
-  if (now - lastControlUpdate >= kControlIntervalMs) {
-    hvac.update();
-    lastControlUpdate = now;
-  }
   ArduinoOTA.handle();
+  scheduleManager.update(hvac);
+  hvac.update();
   webInterface.handleClient();
-  delay(10);
 }

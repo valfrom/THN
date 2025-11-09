@@ -67,7 +67,8 @@ void WebInterface::handleState() {
 
   time_t now = time(nullptr);
   if (now > 0) {
-    struct tm *timeinfo = localtime(&now);
+    time_t adjusted = now + static_cast<time_t>(schedule_.timezoneOffsetMinutes()) * 60;
+    struct tm *timeinfo = gmtime(&adjusted);
     if (timeinfo != nullptr) {
       char buffer[25];
       snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
@@ -81,6 +82,8 @@ void WebInterface::handleState() {
     }
     json += ",\"currentTimeEpoch\":" + String(static_cast<unsigned long>(now));
   }
+
+  json += ",\"timezoneOffset\":" + String(schedule_.timezoneOffsetHours(), 2);
 
   appendTemperatureLog(json, 30);
   appendPowerLog(json, 30);
@@ -162,6 +165,9 @@ void WebInterface::handleConfig() {
   }
   if (server_.hasArg("weekend")) {
     updateScheduleFromArg(server_.arg("weekend"), &scheduler::ScheduleManager::setWeekendSchedule);
+  }
+  if (server_.hasArg("timezoneOffset")) {
+    schedule_.setTimezoneOffsetHours(server_.arg("timezoneOffset").toFloat());
   }
 
   server_.send(200, "application/json", "{\"status\":\"ok\"}");
