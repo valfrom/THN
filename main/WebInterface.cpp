@@ -340,7 +340,7 @@ void WebInterface::updateScheduleFromArg(
           modePart.toLowerCase();
           mode = scheduleModeFromString(modePart);
         }
-        entries[count++] = {hour, minute, temperature, mode};
+        entries[count++] = scheduler::ScheduleEntry(hour, minute, temperature, mode);
       }
     }
     start = end + 1;

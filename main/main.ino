@@ -111,11 +111,13 @@ const PowerLog::ConsumptionRate kConsumptionTable[] = {
 };
 
 const ScheduleEntry kDefaultWeekday[] = {
-    {6, 0, 23.0f}, {9, 0, 26.0f}, {17, 30, 23.5f}, {22, 0, 25.0f},
+    ScheduleEntry(6, 0, 23.0f), ScheduleEntry(9, 0, 26.0f),
+    ScheduleEntry(17, 30, 23.5f), ScheduleEntry(22, 0, 25.0f),
 };
 
 const ScheduleEntry kDefaultWeekend[] = {
-    {8, 0, 23.5f}, {12, 0, 25.0f}, {18, 0, 23.0f}, {23, 0, 25.5f},
+    ScheduleEntry(8, 0, 23.5f), ScheduleEntry(12, 0, 25.0f),
+    ScheduleEntry(18, 0, 23.0f), ScheduleEntry(23, 0, 25.5f),
 };
 
 unsigned long lastControlUpdate = 0;
@@ -210,12 +212,7 @@ void configureSchedule() {
 void configureOta() {
   ArduinoOTA.setHostname("thn-hvac");
 
-  ArduinoOTA.onStart([]() {
-    String type = ArduinoOTA.getCommand() == U_FLASH ? F("sketch") : F("filesystem");
-    Serial.print(F("OTA update starting ("));
-    Serial.print(type);
-    Serial.println(F(")"));
-  });
+  ArduinoOTA.onStart([]() { Serial.println(F("OTA update starting")); });
 
   ArduinoOTA.onEnd([]() {
     Serial.println();

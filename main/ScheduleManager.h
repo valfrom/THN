@@ -17,7 +17,13 @@ struct ScheduleEntry {
   uint8_t hour;
   uint8_t minute;
   float temperature;
-  ScheduledMode mode = ScheduledMode::kUnspecified;
+  ScheduledMode mode;
+
+  constexpr ScheduleEntry(uint8_t h = 0,
+                          uint8_t m = 0,
+                          float t = 0.0f,
+                          ScheduledMode mo = ScheduledMode::kUnspecified)
+      : hour(h), minute(m), temperature(t), mode(mo) {}
 };
 
 struct ScheduleTarget {
