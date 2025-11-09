@@ -11,6 +11,7 @@
 #include "PowerLog.h"
 #include "TemperatureLog.h"
 #include "ScheduleManager.h"
+#include "SettingsStorage.h"
 
 #include "WiFiConfig.h"
 
@@ -27,6 +28,7 @@ using logging::TemperatureLog;
 using scheduler::ScheduleEntry;
 using scheduler::ScheduledMode;
 using scheduler::ScheduleManager;
+using storage::SettingsStorage;
 
 namespace {
 // Pin configuration -- adjust for your hardware layout.
@@ -99,8 +101,9 @@ SensorManager sensors;
 ScheduleManager scheduleManager;
 TemperatureLog temperatureLog;
 PowerLog powerLog;
+SettingsStorage settingsStorage;
 HVACController hvac(compressor, fan, sensors, scheduleManager, temperatureLog, powerLog);
-WebInterface webInterface(hvac, scheduleManager, temperatureLog, powerLog, 80);
+WebInterface webInterface(hvac, scheduleManager, temperatureLog, powerLog, &settingsStorage, 80);
 
 const PowerLog::ConsumptionRate kConsumptionTable[] = {
     {FanSpeed::kOff, false, 5.0f},   {FanSpeed::kLow, false, 45.0f},
@@ -271,6 +274,11 @@ void setup() {
   powerLog.setConsumptionTable(kConsumptionTable,
                                sizeof(kConsumptionTable) / sizeof(PowerLog::ConsumptionRate));
 
+  bool storageReady = settingsStorage.begin();
+  if (!storageReady) {
+    Serial.println(F("Failed to mount LittleFS; settings persistence disabled."));
+  }
+
   hvac.setSystemMode(SystemMode::kCooling);
   hvac.setFanMode(FanMode::kAuto);
   hvac.enableScheduling(true);
@@ -293,6 +301,16 @@ void setup() {
       break;
   }
   hvac.setHysteresis(1.0f);
+
+  if (storageReady) {
+    if (settingsStorage.load(hvac, scheduleManager)) {
+      Serial.println(F("Settings restored from storage."));
+    } else {
+      Serial.println(F("No saved settings found; using defaults."));
+    }
+  }
+
+  scheduleManager.update(hvac);
   hvac.begin();
 
   webInterface.begin();
