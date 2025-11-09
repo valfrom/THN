@@ -67,7 +67,6 @@ class HVACController {
   bool compressorRunning() const { return compressor_.isRunning(); }
 
  private:
-  void updateTargetsFromSchedule();
   void applyControlLogic();
   void updateFanState();
   void logState();

@@ -3,6 +3,10 @@
 #include <Arduino.h>
 #include <time.h>
 
+namespace controller {
+class HVACController;
+}
+
 namespace scheduler {
 
 enum class ScheduledMode : uint8_t {
@@ -43,6 +47,8 @@ class ScheduleManager {
   void setWeekendSchedule(const ScheduleEntry *entries, size_t count);
 
   ScheduleTarget targetFor(time_t now) const;
+
+  void update(controller::HVACController &hvac) const;
 
   const ScheduleEntry *weekdayEntries(size_t &count) const;
   const ScheduleEntry *weekendEntries(size_t &count) const;
