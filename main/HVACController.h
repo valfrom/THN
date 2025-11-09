@@ -88,6 +88,11 @@ class HVACController {
   bool schedulingEnabled_ = false;
 
   unsigned long lastControlUpdate_ = 0;
+  unsigned long lastScheduleCheckMs_ = 0;
+  bool scheduleTargetValid_ = false;
+  float lastScheduledTemperature_ = NAN;
+  SystemMode lastScheduledSystemMode_ = SystemMode::kIdle;
+  bool lastScheduledModeSpecified_ = false;
 };
 
 }  // namespace controller

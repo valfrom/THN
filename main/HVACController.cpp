@@ -1,6 +1,7 @@
 #include "HVACController.h"
 
 #include <time.h>
+#include <math.h>
 
 #include "PowerLog.h"
 #include "TemperatureLog.h"
@@ -46,7 +47,12 @@ void HVACController::setCompressorMinimumAmbient(float minimumAmbient) {
   compressorMinAmbientC_ = max(7.0f, minimumAmbient);
 }
 
-void HVACController::enableScheduling(bool enabled) { schedulingEnabled_ = enabled; }
+void HVACController::enableScheduling(bool enabled) {
+  schedulingEnabled_ = enabled;
+  scheduleTargetValid_ = false;
+  lastScheduledModeSpecified_ = false;
+  lastScheduleCheckMs_ = 0;
+}
 
 void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
 
@@ -71,25 +77,70 @@ void HVACController::updateTargetsFromSchedule() {
   if (!schedulingEnabled_) {
     return;
   }
+  unsigned long nowMs = millis();
+  if (scheduleTargetValid_) {
+    constexpr unsigned long kScheduleCheckIntervalMs = 15000;
+    if ((nowMs - lastScheduleCheckMs_) < kScheduleCheckIntervalMs) {
+      return;
+    }
+  }
+  lastScheduleCheckMs_ = nowMs;
+
   time_t now = time(nullptr);
   scheduler::ScheduleTarget scheduled = schedule_.targetFor(now);
-  targetTemperature_ = scheduled.temperature;
-  switch (scheduled.mode) {
-    case scheduler::ScheduledMode::kCooling:
-      setSystemMode(SystemMode::kCooling);
-      break;
-    case scheduler::ScheduledMode::kHeating:
-      setSystemMode(SystemMode::kHeating);
-      break;
-    case scheduler::ScheduledMode::kFanOnly:
-      setSystemMode(SystemMode::kFanOnly);
-      break;
-    case scheduler::ScheduledMode::kIdle:
-      setSystemMode(SystemMode::kIdle);
-      break;
-    case scheduler::ScheduledMode::kUnspecified:
-      break;
+  constexpr float kTemperatureTolerance = 0.05f;
+  bool scheduleTemperatureChanged =
+      !scheduleTargetValid_ ||
+      fabsf(lastScheduledTemperature_ - scheduled.temperature) > kTemperatureTolerance;
+  bool temperatureDifferent = isnan(targetTemperature_) ||
+                              fabsf(targetTemperature_ - scheduled.temperature) >
+                                  kTemperatureTolerance;
+
+  bool modeSpecified = scheduled.mode != scheduler::ScheduledMode::kUnspecified;
+  SystemMode desiredMode = systemMode_;
+  if (modeSpecified) {
+    switch (scheduled.mode) {
+      case scheduler::ScheduledMode::kCooling:
+        desiredMode = SystemMode::kCooling;
+        break;
+      case scheduler::ScheduledMode::kHeating:
+        desiredMode = SystemMode::kHeating;
+        break;
+      case scheduler::ScheduledMode::kFanOnly:
+        desiredMode = SystemMode::kFanOnly;
+        break;
+      case scheduler::ScheduledMode::kIdle:
+        desiredMode = SystemMode::kIdle;
+        break;
+      case scheduler::ScheduledMode::kUnspecified:
+        break;
+    }
   }
+
+  bool modeChangedFromSchedule = !scheduleTargetValid_ ||
+                                 (modeSpecified != lastScheduledModeSpecified_) ||
+                                 (modeSpecified && lastScheduledSystemMode_ != desiredMode);
+
+  bool shouldUpdateTarget = temperatureDifferent || scheduleTemperatureChanged ||
+                            (modeSpecified ? modeChangedFromSchedule :
+                                             lastScheduledModeSpecified_);
+
+  if (shouldUpdateTarget) {
+    setTargetTemperature(scheduled.temperature);
+    lastScheduledTemperature_ = scheduled.temperature;
+  }
+
+  if (modeSpecified) {
+    if (modeChangedFromSchedule || systemMode_ != desiredMode) {
+      setSystemMode(desiredMode);
+    }
+    lastScheduledSystemMode_ = desiredMode;
+    lastScheduledModeSpecified_ = true;
+  } else {
+    lastScheduledModeSpecified_ = false;
+  }
+
+  scheduleTargetValid_ = true;
 }
 
 void HVACController::applyControlLogic() {
