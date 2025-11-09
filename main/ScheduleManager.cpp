@@ -26,11 +26,11 @@ ScheduleTarget ScheduleManager::targetFor(time_t now) const {
   }
 
   tm timeinfo;
-#if defined(ESP8266)
-  localtime_r(&now, &timeinfo);
-#else
-  timeinfo = *localtime(&now);
-#endif
+  tm *timeinfoPtr = localtime(&now);
+  if (timeinfoPtr == nullptr) {
+    return {defaultTemperature_, ScheduledMode::kUnspecified};
+  }
+  timeinfo = *timeinfoPtr;
   int minutes = toMinutes(static_cast<uint8_t>(timeinfo.tm_hour),
                           static_cast<uint8_t>(timeinfo.tm_min));
   bool weekend = (timeinfo.tm_wday == 0 || timeinfo.tm_wday == 6);

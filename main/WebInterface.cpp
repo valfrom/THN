@@ -2,6 +2,7 @@
 #include "WebInterfaceHtml.h"
 
 #include <ESP8266WiFi.h>
+#include <stdio.h>
 #include <time.h>
 
 namespace interface {
@@ -69,7 +70,13 @@ void WebInterface::handleState() {
     struct tm *timeinfo = localtime(&now);
     if (timeinfo != nullptr) {
       char buffer[25];
-      strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
+      snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
+               timeinfo->tm_year + 1900,
+               timeinfo->tm_mon + 1,
+               timeinfo->tm_mday,
+               timeinfo->tm_hour,
+               timeinfo->tm_min,
+               timeinfo->tm_sec);
       json += ",\"currentTime\":\"" + String(buffer) + "\"";
     }
     json += ",\"currentTimeEpoch\":" + String(static_cast<unsigned long>(now));
