@@ -45,7 +45,7 @@ void HVACController::setCompressorMinimumAmbient(float minimumAmbient) {
   if (isnan(minimumAmbient)) {
     return;
   }
-  compressorMinAmbientC_ = max(7.0f, minimumAmbient);
+  compressorMinAmbientC_ = max(0.0f, minimumAmbient);
 }
 
 void HVACController::enableScheduling(bool enabled) { schedulingEnabled_ = enabled; }

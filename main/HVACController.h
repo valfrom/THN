@@ -81,7 +81,7 @@ class HVACController {
   float targetTemperature_ = 23.0f;  // Celsius default
   float hysteresis_ = 1.0f;
   float compressorTemperatureLimit_ = 60.0f;
-  float compressorMinAmbientC_ = 7.0f;
+  float compressorMinAmbientC_ = 4.0f;
   FanMode fanMode_ = FanMode::kAuto;
   SystemMode systemMode_ = SystemMode::kCooling;
   bool schedulingEnabled_ = false;
