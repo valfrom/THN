@@ -49,7 +49,9 @@ class ScheduleManager {
   ScheduleTarget targetFor(time_t now) const;
 
   void setTimezoneOffsetMinutes(int16_t offsetMinutes);
+  void setTimezoneOffsetHours(float offsetHours);
   int16_t timezoneOffsetMinutes() const { return timezoneOffsetMinutes_; }
+  float timezoneOffsetHours() const;
 
   void update(controller::HVACController &hvac) const;
 

@@ -83,7 +83,7 @@ void WebInterface::handleState() {
     json += ",\"currentTimeEpoch\":" + String(static_cast<unsigned long>(now));
   }
 
-  json += ",\"timezoneOffset\":" + String(schedule_.timezoneOffsetMinutes());
+  json += ",\"timezoneOffset\":" + String(schedule_.timezoneOffsetHours(), 2);
 
   appendTemperatureLog(json, 30);
   appendPowerLog(json, 30);
@@ -167,7 +167,7 @@ void WebInterface::handleConfig() {
     updateScheduleFromArg(server_.arg("weekend"), &scheduler::ScheduleManager::setWeekendSchedule);
   }
   if (server_.hasArg("timezoneOffset")) {
-    schedule_.setTimezoneOffsetMinutes(server_.arg("timezoneOffset").toInt());
+    schedule_.setTimezoneOffsetHours(server_.arg("timezoneOffset").toFloat());
   }
 
   server_.send(200, "application/json", "{\"status\":\"ok\"}");

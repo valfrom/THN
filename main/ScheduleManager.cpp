@@ -53,6 +53,25 @@ void ScheduleManager::setTimezoneOffsetMinutes(int16_t offsetMinutes) {
   timezoneOffsetMinutes_ = offsetMinutes;
 }
 
+void ScheduleManager::setTimezoneOffsetHours(float offsetHours) {
+  constexpr float kMinOffsetHours = -12.0f;
+  constexpr float kMaxOffsetHours = 14.0f;
+  if (offsetHours < kMinOffsetHours) {
+    offsetHours = kMinOffsetHours;
+  } else if (offsetHours > kMaxOffsetHours) {
+    offsetHours = kMaxOffsetHours;
+  }
+
+  float scaled = offsetHours * 60.0f;
+  int16_t roundedMinutes =
+      static_cast<int16_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
+  setTimezoneOffsetMinutes(roundedMinutes);
+}
+
+float ScheduleManager::timezoneOffsetHours() const {
+  return static_cast<float>(timezoneOffsetMinutes_) / 60.0f;
+}
+
 void ScheduleManager::update(controller::HVACController &hvac) const {
   if (!hvac.schedulingEnabled()) {
     return;
