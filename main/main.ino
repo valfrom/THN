@@ -35,6 +35,7 @@ constexpr FanController::Pins kFanPins = {5, 14, 12};  // GPIO5/14/12 (D1/D5/D6)
 constexpr uint8_t kOneWireBusPin = 4;        // GPIO4 (D2)
 
 constexpr unsigned long kControlIntervalMs = 1000;
+constexpr unsigned long kOtaExclusiveWindowMs = 120000;
 
 OneWire oneWire(kOneWireBusPin);
 DallasTemperature dallasSensors(&oneWire);
@@ -126,6 +127,7 @@ const ScheduleEntry kDefaultWeekend[] = {
 };
 
 unsigned long lastControlUpdate = 0;
+unsigned long otaExclusiveEnd = 0;
 
 void connectWiFi() {
   WiFi.mode(WIFI_STA);
@@ -266,6 +268,10 @@ void setup() {
 
   connectWiFi();
   configureOta();
+  otaExclusiveEnd = millis() + kOtaExclusiveWindowMs;
+  Serial.print(F("OTA exclusive window active for "));
+  Serial.print(kOtaExclusiveWindowMs / 1000);
+  Serial.println(F(" seconds"));
   configureTime();
 
   initializeSensors();
@@ -304,11 +310,14 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
-  if (now - lastControlUpdate >= kControlIntervalMs) {
+  bool otaExclusive = otaExclusiveEnd != 0 && static_cast<long>(otaExclusiveEnd - now) > 0;
+  if (!otaExclusive && now - lastControlUpdate >= kControlIntervalMs) {
     hvac.update();
     lastControlUpdate = now;
   }
   ArduinoOTA.handle();
-  webInterface.handleClient();
+  if (!otaExclusive) {
+    webInterface.handleClient();
+  }
   delay(10);
 }
