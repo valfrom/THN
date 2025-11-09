@@ -11,11 +11,13 @@ WebInterface::WebInterface(controller::HVACController &controller,
                            scheduler::ScheduleManager &schedule,
                            logging::TemperatureLog &temperatureLog,
                            logging::PowerLog &powerLog,
+                           storage::SettingsStorage *settings,
                            uint16_t port)
     : controller_(controller),
       schedule_(schedule),
       temperatureLog_(temperatureLog),
       powerLog_(powerLog),
+      settings_(settings),
       server_(port) {}
 
 void WebInterface::begin() {
@@ -168,6 +170,10 @@ void WebInterface::handleConfig() {
   }
   if (server_.hasArg("timezoneOffset")) {
     schedule_.setTimezoneOffsetHours(server_.arg("timezoneOffset").toFloat());
+  }
+
+  if (settings_ != nullptr) {
+    settings_->save(controller_, schedule_);
   }
 
   server_.send(200, "application/json", "{\"status\":\"ok\"}");

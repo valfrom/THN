@@ -6,6 +6,7 @@
 #include "PowerLog.h"
 #include "TemperatureLog.h"
 #include "ScheduleManager.h"
+#include "SettingsStorage.h"
 
 namespace interface {
 
@@ -15,6 +16,7 @@ class WebInterface {
                scheduler::ScheduleManager &schedule,
                logging::TemperatureLog &temperatureLog,
                logging::PowerLog &powerLog,
+               storage::SettingsStorage *settings,
                uint16_t port = 80);
 
   void begin();
@@ -46,6 +48,7 @@ class WebInterface {
   scheduler::ScheduleManager &schedule_;
   logging::TemperatureLog &temperatureLog_;
   logging::PowerLog &powerLog_;
+  storage::SettingsStorage *settings_;
 
   ESP8266WebServer server_;
 };
