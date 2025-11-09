@@ -139,22 +139,26 @@ void HVACController::applyControlLogic() {
 
 void HVACController::updateFanState() {
   FanSpeed desired = FanSpeed::kOff;
-  switch (fanMode_) {
-    case FanMode::kAuto:
-      desired = compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kLow;
-      break;
-    case FanMode::kOff:
-      desired = FanSpeed::kOff;
-      break;
-    case FanMode::kLow:
-      desired = FanSpeed::kLow;
-      break;
-    case FanMode::kMedium:
-      desired = FanSpeed::kMedium;
-      break;
-    case FanMode::kHigh:
-      desired = FanSpeed::kHigh;
-      break;
+  if (systemMode_ == SystemMode::kIdle) {
+    desired = FanSpeed::kOff;
+  } else {
+    switch (fanMode_) {
+      case FanMode::kAuto:
+        desired = compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kLow;
+        break;
+      case FanMode::kOff:
+        desired = FanSpeed::kOff;
+        break;
+      case FanMode::kLow:
+        desired = FanSpeed::kLow;
+        break;
+      case FanMode::kMedium:
+        desired = FanSpeed::kMedium;
+        break;
+      case FanMode::kHigh:
+        desired = FanSpeed::kHigh;
+        break;
+    }
   }
 
   fan_.setRequestedSpeed(desired);
