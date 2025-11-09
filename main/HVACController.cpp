@@ -52,6 +52,7 @@ void HVACController::enableScheduling(bool enabled) {
   scheduleTargetValid_ = false;
   lastScheduledModeSpecified_ = false;
   lastScheduleCheckMs_ = 0;
+  lastScheduleCheckMinute_ = -1;
 }
 
 void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
@@ -77,16 +78,27 @@ void HVACController::updateTargetsFromSchedule() {
   if (!schedulingEnabled_) {
     return;
   }
+  time_t now = time(nullptr);
+  int minutesOfDay = -1;
+  if (now != (time_t)-1) {
+    tm *timeinfoPtr = localtime(&now);
+    if (timeinfoPtr != nullptr) {
+      minutesOfDay = static_cast<int>(timeinfoPtr->tm_hour) * 60 +
+                     static_cast<int>(timeinfoPtr->tm_min);
+    }
+  }
+
   unsigned long nowMs = millis();
   if (scheduleTargetValid_) {
+    bool minuteChanged = minutesOfDay != lastScheduleCheckMinute_ &&
+                         minutesOfDay >= 0;
     constexpr unsigned long kScheduleCheckIntervalMs = 15000;
-    if ((nowMs - lastScheduleCheckMs_) < kScheduleCheckIntervalMs) {
+    if (!minuteChanged && (nowMs - lastScheduleCheckMs_) < kScheduleCheckIntervalMs) {
       return;
     }
   }
   lastScheduleCheckMs_ = nowMs;
 
-  time_t now = time(nullptr);
   scheduler::ScheduleTarget scheduled = schedule_.targetFor(now);
   constexpr float kTemperatureTolerance = 0.05f;
   bool scheduleTemperatureChanged =
@@ -141,6 +153,9 @@ void HVACController::updateTargetsFromSchedule() {
   }
 
   scheduleTargetValid_ = true;
+  if (minutesOfDay >= 0) {
+    lastScheduleCheckMinute_ = minutesOfDay;
+  }
 }
 
 void HVACController::applyControlLogic() {

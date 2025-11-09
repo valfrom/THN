@@ -93,6 +93,7 @@ class HVACController {
   float lastScheduledTemperature_ = NAN;
   SystemMode lastScheduledSystemMode_ = SystemMode::kIdle;
   bool lastScheduledModeSpecified_ = false;
+  int lastScheduleCheckMinute_ = -1;
 };
 
 }  // namespace controller
