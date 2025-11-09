@@ -128,6 +128,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <div>Compressor Off Timeout: <span id="compressorOffTimeout">-</span></div>
         <div>Target: <span id="target">-</span>°C</div>
         <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
+        <div>Compressor Temp Limit: <span id="compressorTempLimit">-</span>°C</div>
         <div>Ambient: <span id="ambient">-</span>°C</div>
         <div>Coil: <span id="coil">-</span>°C</div>
         <div>Energy: <span id="energy">-</span> Wh</div>
@@ -145,6 +146,16 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           <div>
             <label for="hysteresisInput">Hysteresis (°C)</label>
             <input id="hysteresisInput" name="hysteresis" type="number" step="0.1" />
+          </div>
+          <div>
+            <label for="compressorTempLimitInput">Compressor Temp Limit (°C)</label>
+            <input
+              id="compressorTempLimitInput"
+              name="compressorTempLimit"
+              type="number"
+              step="0.1"
+              min="0"
+            />
           </div>
           <div>
             <label for="fanModeInput">Fan Mode</label>
@@ -357,6 +368,9 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           formatCompressorTimeout(data.compressorOffTimeout);
         document.getElementById('target').textContent = toFixedOrDash(data.target);
         document.getElementById('hysteresis').textContent = toFixedOrDash(data.hysteresis);
+        document.getElementById('compressorTempLimit').textContent = toFixedOrDash(
+          data.compressorTempLimit,
+        );
         document.getElementById('ambient').textContent = toFixedOrDash(data.ambient);
         document.getElementById('coil').textContent = toFixedOrDash(data.coil);
         document.getElementById('energy').textContent = toFixedOrDash(data.energyWh);
@@ -365,6 +379,12 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       function updateConfigForm(data) {
         document.getElementById('targetInput').value = Number(data.target).toFixed(1);
         document.getElementById('hysteresisInput').value = Number(data.hysteresis).toFixed(1);
+        const compressorLimitValue = Number(data.compressorTempLimit);
+        document.getElementById('compressorTempLimitInput').value = Number.isFinite(
+          compressorLimitValue,
+        )
+          ? compressorLimitValue.toFixed(1)
+          : '';
         document.getElementById('fanModeInput').value = data.fanMode;
         document.getElementById('systemModeInput').value = data.systemMode;
         document.getElementById('schedulingInput').checked = Boolean(data.scheduling);
