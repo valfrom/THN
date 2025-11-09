@@ -5,10 +5,24 @@
 
 namespace scheduler {
 
+enum class ScheduledMode : uint8_t {
+  kUnspecified = 0,
+  kCooling,
+  kHeating,
+  kFanOnly,
+  kIdle,
+};
+
 struct ScheduleEntry {
   uint8_t hour;
   uint8_t minute;
   float temperature;
+  ScheduledMode mode = ScheduledMode::kUnspecified;
+};
+
+struct ScheduleTarget {
+  float temperature;
+  ScheduledMode mode;
 };
 
 class ScheduleManager {
@@ -22,7 +36,7 @@ class ScheduleManager {
   void setWeekdaySchedule(const ScheduleEntry *entries, size_t count);
   void setWeekendSchedule(const ScheduleEntry *entries, size_t count);
 
-  float targetFor(time_t now) const;
+  ScheduleTarget targetFor(time_t now) const;
 
   const ScheduleEntry *weekdayEntries(size_t &count) const;
   const ScheduleEntry *weekendEntries(size_t &count) const;
@@ -37,7 +51,9 @@ class ScheduleManager {
                           size_t count,
                           ScheduleData &destination);
 
-  static float resolveTarget(const ScheduleData &schedule, int minutesOfDay, float fallback);
+  static ScheduleTarget resolveTarget(const ScheduleData &schedule,
+                                      int minutesOfDay,
+                                      const ScheduleTarget &fallback);
 
   float defaultTemperature_ = 23.0f;
   ScheduleData weekday_;

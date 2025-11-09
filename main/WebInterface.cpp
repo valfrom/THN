@@ -43,6 +43,7 @@ void WebInterface::handleState() {
   json += ",\"target\":" + String(controller_.targetTemperature(), 2);
   json += ",\"hysteresis\":" + String(controller_.hysteresis(), 2);
   json += ",\"compressorTempLimit\":" + String(controller_.compressorTemperatureLimit(), 1);
+  json += ",\"compressorMinAmbient\":" + String(controller_.compressorMinimumAmbient(), 1);
   json += ",\"fanMode\":\"" + fanModeToString(controller_.fanMode()) + "\"";
   json += ",\"systemMode\":\"" + systemModeToString(controller_.systemMode()) + "\"";
   json += controller_.schedulingEnabled() ? ",\"scheduling\":true" : ",\"scheduling\":false";
@@ -89,7 +90,14 @@ void WebInterface::handleState() {
     String minuteStr = weekday[i].minute < 10 ? "0" + String(weekday[i].minute)
                                               : String(weekday[i].minute);
     json += "{\"time\":\"" + hourStr + ":" + minuteStr +
-            "\",\"temp\":" + String(weekday[i].temperature, 1) + "}";
+            "\",\"temp\":" + String(weekday[i].temperature, 1);
+    json += ",\"mode\":";
+    if (weekday[i].mode == scheduler::ScheduledMode::kUnspecified) {
+      json += "null";
+    } else {
+      json += "\"" + scheduleModeToString(weekday[i].mode) + "\"";
+    }
+    json += "}";
   }
   json += "]";
 
@@ -105,7 +113,14 @@ void WebInterface::handleState() {
     String minuteStr = weekend[i].minute < 10 ? "0" + String(weekend[i].minute)
                                               : String(weekend[i].minute);
     json += "{\"time\":\"" + hourStr + ":" + minuteStr +
-            "\",\"temp\":" + String(weekend[i].temperature, 1) + "}";
+            "\",\"temp\":" + String(weekend[i].temperature, 1);
+    json += ",\"mode\":";
+    if (weekend[i].mode == scheduler::ScheduledMode::kUnspecified) {
+      json += "null";
+    } else {
+      json += "\"" + scheduleModeToString(weekend[i].mode) + "\"";
+    }
+    json += "}";
   }
   json += "]";
 
@@ -122,6 +137,9 @@ void WebInterface::handleConfig() {
   }
   if (server_.hasArg("compressorTempLimit")) {
     controller_.setCompressorTemperatureLimit(server_.arg("compressorTempLimit").toFloat());
+  }
+  if (server_.hasArg("compressorMinAmbient")) {
+    controller_.setCompressorMinimumAmbient(server_.arg("compressorMinAmbient").toFloat());
   }
   if (server_.hasArg("fanMode")) {
     controller_.setFanMode(fanModeFromString(server_.arg("fanMode")));
@@ -217,6 +235,38 @@ controller::SystemMode WebInterface::systemModeFromString(const String &value) {
   return controller::SystemMode::kCooling;
 }
 
+String WebInterface::scheduleModeToString(scheduler::ScheduledMode mode) {
+  switch (mode) {
+    case scheduler::ScheduledMode::kCooling:
+      return "cooling";
+    case scheduler::ScheduledMode::kHeating:
+      return "heating";
+    case scheduler::ScheduledMode::kFanOnly:
+      return "fan";
+    case scheduler::ScheduledMode::kIdle:
+      return "idle";
+    case scheduler::ScheduledMode::kUnspecified:
+      break;
+  }
+  return "";
+}
+
+scheduler::ScheduledMode WebInterface::scheduleModeFromString(const String &value) {
+  if (value == "cooling") {
+    return scheduler::ScheduledMode::kCooling;
+  }
+  if (value == "heating") {
+    return scheduler::ScheduledMode::kHeating;
+  }
+  if (value == "fan") {
+    return scheduler::ScheduledMode::kFanOnly;
+  }
+  if (value == "idle") {
+    return scheduler::ScheduledMode::kIdle;
+  }
+  return scheduler::ScheduledMode::kUnspecified;
+}
+
 void WebInterface::appendTemperatureLog(String &json, size_t maxEntries) const {
   json += ",\"temperatureLog\":[";
   size_t count = 0;
@@ -279,8 +329,18 @@ void WebInterface::updateScheduleFromArg(
       if (equals > colon && colon > 0) {
         uint8_t hour = static_cast<uint8_t>(token.substring(0, colon).toInt());
         uint8_t minute = static_cast<uint8_t>(token.substring(colon + 1, equals).toInt());
-        float temperature = token.substring(equals + 1).toFloat();
-        entries[count++] = {hour, minute, temperature};
+        int modeSeparator = token.indexOf('|', equals + 1);
+        String tempPart = modeSeparator == -1 ? token.substring(equals + 1)
+                                             : token.substring(equals + 1, modeSeparator);
+        float temperature = tempPart.toFloat();
+        scheduler::ScheduledMode mode = scheduler::ScheduledMode::kUnspecified;
+        if (modeSeparator != -1) {
+          String modePart = token.substring(modeSeparator + 1);
+          modePart.trim();
+          modePart.toLowerCase();
+          mode = scheduleModeFromString(modePart);
+        }
+        entries[count++] = {hour, minute, temperature, mode};
       }
     }
     start = end + 1;

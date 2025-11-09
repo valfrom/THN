@@ -276,7 +276,24 @@ void setup() {
   hvac.setSystemMode(SystemMode::kCooling);
   hvac.setFanMode(FanMode::kAuto);
   hvac.enableScheduling(true);
-  hvac.setTargetTemperature(scheduleManager.targetFor(time(nullptr)));
+  scheduler::ScheduleTarget initialTarget = scheduleManager.targetFor(time(nullptr));
+  hvac.setTargetTemperature(initialTarget.temperature);
+  switch (initialTarget.mode) {
+    case scheduler::ScheduledMode::kCooling:
+      hvac.setSystemMode(SystemMode::kCooling);
+      break;
+    case scheduler::ScheduledMode::kHeating:
+      hvac.setSystemMode(SystemMode::kHeating);
+      break;
+    case scheduler::ScheduledMode::kFanOnly:
+      hvac.setSystemMode(SystemMode::kFanOnly);
+      break;
+    case scheduler::ScheduledMode::kIdle:
+      hvac.setSystemMode(SystemMode::kIdle);
+      break;
+    case scheduler::ScheduledMode::kUnspecified:
+      break;
+  }
   hvac.setHysteresis(1.0f);
   hvac.begin();
 

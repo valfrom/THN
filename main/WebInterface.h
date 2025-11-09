@@ -32,6 +32,8 @@ class WebInterface {
   static String fanSpeedToString(controller::FanSpeed speed);
   static String systemModeToString(controller::SystemMode mode);
   static controller::SystemMode systemModeFromString(const String &value);
+  static String scheduleModeToString(scheduler::ScheduledMode mode);
+  static scheduler::ScheduledMode scheduleModeFromString(const String &value);
 
   void appendTemperatureLog(String &json, size_t maxEntries) const;
   void appendPowerLog(String &json, size_t maxEntries) const;

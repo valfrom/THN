@@ -39,6 +39,13 @@ void HVACController::setCompressorTemperatureLimit(float limit) {
   compressorTemperatureLimit_ = limit;
 }
 
+void HVACController::setCompressorMinimumAmbient(float minimumAmbient) {
+  if (isnan(minimumAmbient)) {
+    return;
+  }
+  compressorMinAmbientC_ = max(7.0f, minimumAmbient);
+}
+
 void HVACController::enableScheduling(bool enabled) { schedulingEnabled_ = enabled; }
 
 void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
@@ -65,7 +72,24 @@ void HVACController::updateTargetsFromSchedule() {
     return;
   }
   time_t now = time(nullptr);
-  targetTemperature_ = schedule_.targetFor(now);
+  scheduler::ScheduleTarget scheduled = schedule_.targetFor(now);
+  targetTemperature_ = scheduled.temperature;
+  switch (scheduled.mode) {
+    case scheduler::ScheduledMode::kCooling:
+      setSystemMode(SystemMode::kCooling);
+      break;
+    case scheduler::ScheduledMode::kHeating:
+      setSystemMode(SystemMode::kHeating);
+      break;
+    case scheduler::ScheduledMode::kFanOnly:
+      setSystemMode(SystemMode::kFanOnly);
+      break;
+    case scheduler::ScheduledMode::kIdle:
+      setSystemMode(SystemMode::kIdle);
+      break;
+    case scheduler::ScheduledMode::kUnspecified:
+      break;
+  }
 }
 
 void HVACController::applyControlLogic() {
@@ -88,6 +112,14 @@ void HVACController::applyControlLogic() {
   }
 
   float ambient = sensors_.ambient().value;
+  if (isnan(ambient)) {
+    compressor_.requestOff();
+    return;
+  }
+  if (ambient < compressorMinAmbientC_) {
+    compressor_.requestOff();
+    return;
+  }
   float upper = targetTemperature_ + (hysteresis_ / 2.0f);
   float lower = targetTemperature_ - (hysteresis_ / 2.0f);
 

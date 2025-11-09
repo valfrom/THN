@@ -20,9 +20,9 @@ void ScheduleManager::setWeekendSchedule(const ScheduleEntry *entries, size_t co
   copyAndSort(entries, count, weekend_);
 }
 
-float ScheduleManager::targetFor(time_t now) const {
+ScheduleTarget ScheduleManager::targetFor(time_t now) const {
   if (now == 0) {
-    return defaultTemperature_;
+    return {defaultTemperature_, ScheduledMode::kUnspecified};
   }
 
   tm timeinfo;
@@ -35,7 +35,8 @@ float ScheduleManager::targetFor(time_t now) const {
                           static_cast<uint8_t>(timeinfo.tm_min));
   bool weekend = (timeinfo.tm_wday == 0 || timeinfo.tm_wday == 6);
   const ScheduleData &schedule = weekend ? weekend_ : weekday_;
-  return resolveTarget(schedule, minutes, defaultTemperature_);
+  return resolveTarget(schedule, minutes,
+                       {defaultTemperature_, ScheduledMode::kUnspecified});
 }
 
 const ScheduleEntry *ScheduleManager::weekdayEntries(size_t &count) const {
@@ -73,18 +74,25 @@ void ScheduleManager::copyAndSort(const ScheduleEntry *entries,
   }
 }
 
-float ScheduleManager::resolveTarget(const ScheduleData &schedule,
-                                     int minutesOfDay,
-                                     float fallback) {
+ScheduleTarget ScheduleManager::resolveTarget(const ScheduleData &schedule,
+                                              int minutesOfDay,
+                                              const ScheduleTarget &fallback) {
   if (schedule.count == 0) {
     return fallback;
   }
 
-  float target = schedule.entries[schedule.count - 1].temperature;
+  ScheduleTarget target = {schedule.entries[schedule.count - 1].temperature,
+                           schedule.entries[schedule.count - 1].mode};
+  if (target.mode == ScheduledMode::kUnspecified) {
+    target.mode = fallback.mode;
+  }
   for (size_t i = 0; i < schedule.count; ++i) {
     int entryMinutes = toMinutes(schedule.entries[i].hour, schedule.entries[i].minute);
     if (entryMinutes <= minutesOfDay) {
-      target = schedule.entries[i].temperature;
+      target.temperature = schedule.entries[i].temperature;
+      if (schedule.entries[i].mode != ScheduledMode::kUnspecified) {
+        target.mode = schedule.entries[i].mode;
+      }
     } else {
       break;
     }
