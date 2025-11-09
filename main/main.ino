@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+#include <ArduinoOTA.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <time.h>
@@ -206,6 +207,53 @@ void configureSchedule() {
   scheduleManager.setWeekendSchedule(kDefaultWeekend, sizeof(kDefaultWeekend) / sizeof(ScheduleEntry));
 }
 
+void configureOta() {
+  ArduinoOTA.setHostname("thn-hvac");
+
+  ArduinoOTA.onStart([]() {
+    String type = ArduinoOTA.getCommand() == U_FLASH ? F("sketch") : F("filesystem");
+    Serial.print(F("OTA update starting ("));
+    Serial.print(type);
+    Serial.println(F(")"));
+  });
+
+  ArduinoOTA.onEnd([]() {
+    Serial.println();
+    Serial.println(F("OTA update complete"));
+  });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("OTA progress: %u%%\r", (progress * 100) / total);
+  });
+
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("OTA error[%u]: ", error);
+    switch (error) {
+      case OTA_AUTH_ERROR:
+        Serial.println(F("Auth failed"));
+        break;
+      case OTA_BEGIN_ERROR:
+        Serial.println(F("Begin failed"));
+        break;
+      case OTA_CONNECT_ERROR:
+        Serial.println(F("Connect failed"));
+        break;
+      case OTA_RECEIVE_ERROR:
+        Serial.println(F("Receive failed"));
+        break;
+      case OTA_END_ERROR:
+        Serial.println(F("End failed"));
+        break;
+      default:
+        Serial.println(F("Unknown error"));
+        break;
+    }
+  });
+
+  ArduinoOTA.begin();
+  Serial.println(F("OTA ready"));
+}
+
 }  // namespace
 
 void setup() {
@@ -215,6 +263,7 @@ void setup() {
   Serial.println(F("HVAC controller booting"));
 
   connectWiFi();
+  configureOta();
   configureTime();
 
   initializeSensors();
@@ -240,6 +289,7 @@ void loop() {
     hvac.update();
     lastControlUpdate = now;
   }
+  ArduinoOTA.handle();
   webInterface.handleClient();
   delay(10);
 }
