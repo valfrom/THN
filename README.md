@@ -11,6 +11,7 @@ safety logic, scheduling, logging, and a web dashboard.
 - Weekday/weekend scheduling to automatically adjust target temperatures.
 - Rolling temperature and power logs with configurable consumption estimates.
 - Wi-Fi enabled single-page web interface for monitoring and configuration.
+- Over-the-air (OTA) firmware updates once the device is connected to Wi-Fi.
 
 ## Hardware overview
 
@@ -48,6 +49,8 @@ wiring. If you need additional GPIOs (e.g., blower enable), extend the controlle
 3. Open `main/main.ino` in the Arduino IDE. The IDE will treat the `main` directory as the sketch folder.
 4. Select the correct board (e.g., *NodeMCU 1.0 (ESP-12E Module)*) and serial port.
 5. Build and upload the sketch.
+6. After the first serial upload, future updates can be sent over-the-air using the Arduino IDE's
+   **Tools → Port → Network ports** entry for the controller (advertised as `thn-hvac`).
 
 ## Runtime behavior
 
