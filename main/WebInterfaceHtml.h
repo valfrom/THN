@@ -129,6 +129,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <div>Target: <span id="target">-</span>°C</div>
         <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
         <div>Compressor Temp Limit: <span id="compressorTempLimit">-</span>°C</div>
+        <div>Compressor Min Ambient: <span id="compressorMinAmbient">-</span>°C</div>
         <div>Ambient: <span id="ambient">-</span>°C</div>
         <div>Coil: <span id="coil">-</span>°C</div>
         <div>Energy: <span id="energy">-</span> Wh</div>
@@ -158,6 +159,15 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             />
           </div>
           <div>
+            <label for="compressorMinAmbientInput">Compressor Min Ambient (°C)</label>
+            <input
+              id="compressorMinAmbientInput"
+              name="compressorMinAmbient"
+              type="number"
+              step="0.1"
+            />
+          </div>
+          <div>
             <label for="fanModeInput">Fan Mode</label>
             <select id="fanModeInput" name="fanMode">
               <option value="auto">Automatic</option>
@@ -181,10 +191,24 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           <input id="schedulingInput" name="scheduling" type="checkbox" value="true" />
           Enable scheduling
         </label>
-        <label for="weekdayInput">Weekday Schedule (HH:MM=TEMP;…)</label>
-        <textarea id="weekdayInput" name="weekday" rows="3"></textarea>
-        <label for="weekendInput">Weekend Schedule (HH:MM=TEMP;…)</label>
-        <textarea id="weekendInput" name="weekend" rows="3"></textarea>
+        <label for="weekdayInput">
+          Weekday Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
+        </label>
+        <textarea
+          id="weekdayInput"
+          name="weekday"
+          rows="3"
+          placeholder="06:00=23.0|cooling;09:00=26.0|cooling;17:30=23.5|cooling;22:00=25.0|idle"
+        ></textarea>
+        <label for="weekendInput">
+          Weekend Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
+        </label>
+        <textarea
+          id="weekendInput"
+          name="weekend"
+          rows="3"
+          placeholder="08:00=23.5|cooling;12:00=25.0|cooling;18:00=23.0|cooling;23:00=25.5|idle"
+        ></textarea>
         <button type="submit">Save Configuration</button>
         <p id="configStatus"></p>
       </form>
@@ -266,7 +290,12 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
       function scheduleToText(entries) {
         return entries
-          .map((entry) => `${entry.time}=${Number(entry.temp).toFixed(1)}`)
+          .map((entry) => {
+            const time = entry.time;
+            const temp = Number(entry.temp).toFixed(1);
+            const mode = typeof entry.mode === 'string' && entry.mode.length > 0 ? `|${entry.mode}` : '';
+            return `${time}=${temp}${mode}`;
+          })
           .join(';');
       }
 
@@ -371,6 +400,9 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         document.getElementById('compressorTempLimit').textContent = toFixedOrDash(
           data.compressorTempLimit,
         );
+        document.getElementById('compressorMinAmbient').textContent = toFixedOrDash(
+          data.compressorMinAmbient,
+        );
         document.getElementById('ambient').textContent = toFixedOrDash(data.ambient);
         document.getElementById('coil').textContent = toFixedOrDash(data.coil);
         document.getElementById('energy').textContent = toFixedOrDash(data.energyWh);
@@ -384,6 +416,12 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           compressorLimitValue,
         )
           ? compressorLimitValue.toFixed(1)
+          : '';
+        const compressorMinAmbientValue = Number(data.compressorMinAmbient);
+        document.getElementById('compressorMinAmbientInput').value = Number.isFinite(
+          compressorMinAmbientValue,
+        )
+          ? compressorMinAmbientValue.toFixed(1)
           : '';
         document.getElementById('fanModeInput').value = data.fanMode;
         document.getElementById('systemModeInput').value = data.systemMode;

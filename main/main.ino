@@ -25,6 +25,7 @@ using interface::WebInterface;
 using logging::PowerLog;
 using logging::TemperatureLog;
 using scheduler::ScheduleEntry;
+using scheduler::ScheduledMode;
 using scheduler::ScheduleManager;
 
 namespace {
@@ -111,11 +112,17 @@ const PowerLog::ConsumptionRate kConsumptionTable[] = {
 };
 
 const ScheduleEntry kDefaultWeekday[] = {
-    {6, 0, 23.0f}, {9, 0, 26.0f}, {17, 30, 23.5f}, {22, 0, 25.0f},
+    ScheduleEntry(6, 0, 23.0f, ScheduledMode::kCooling),
+    ScheduleEntry(9, 0, 26.0f, ScheduledMode::kCooling),
+    ScheduleEntry(17, 30, 23.5f, ScheduledMode::kCooling),
+    ScheduleEntry(22, 0, 25.0f, ScheduledMode::kIdle),
 };
 
 const ScheduleEntry kDefaultWeekend[] = {
-    {8, 0, 23.5f}, {12, 0, 25.0f}, {18, 0, 23.0f}, {23, 0, 25.5f},
+    ScheduleEntry(8, 0, 23.5f, ScheduledMode::kCooling),
+    ScheduleEntry(12, 0, 25.0f, ScheduledMode::kCooling),
+    ScheduleEntry(18, 0, 23.0f, ScheduledMode::kCooling),
+    ScheduleEntry(23, 0, 25.5f, ScheduledMode::kIdle),
 };
 
 unsigned long lastControlUpdate = 0;
@@ -210,12 +217,7 @@ void configureSchedule() {
 void configureOta() {
   ArduinoOTA.setHostname("thn-hvac");
 
-  ArduinoOTA.onStart([]() {
-    String type = ArduinoOTA.getCommand() == U_FLASH ? F("sketch") : F("filesystem");
-    Serial.print(F("OTA update starting ("));
-    Serial.print(type);
-    Serial.println(F(")"));
-  });
+  ArduinoOTA.onStart([]() { Serial.println(F("OTA update starting")); });
 
   ArduinoOTA.onEnd([]() {
     Serial.println();
@@ -276,7 +278,24 @@ void setup() {
   hvac.setSystemMode(SystemMode::kCooling);
   hvac.setFanMode(FanMode::kAuto);
   hvac.enableScheduling(true);
-  hvac.setTargetTemperature(scheduleManager.targetFor(time(nullptr)));
+  scheduler::ScheduleTarget initialTarget = scheduleManager.targetFor(time(nullptr));
+  hvac.setTargetTemperature(initialTarget.temperature);
+  switch (initialTarget.mode) {
+    case scheduler::ScheduledMode::kCooling:
+      hvac.setSystemMode(SystemMode::kCooling);
+      break;
+    case scheduler::ScheduledMode::kHeating:
+      hvac.setSystemMode(SystemMode::kHeating);
+      break;
+    case scheduler::ScheduledMode::kFanOnly:
+      hvac.setSystemMode(SystemMode::kFanOnly);
+      break;
+    case scheduler::ScheduledMode::kIdle:
+      hvac.setSystemMode(SystemMode::kIdle);
+      break;
+    case scheduler::ScheduledMode::kUnspecified:
+      break;
+  }
   hvac.setHysteresis(1.0f);
   hvac.begin();
 
