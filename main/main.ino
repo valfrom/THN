@@ -25,6 +25,7 @@ using interface::WebInterface;
 using logging::PowerLog;
 using logging::TemperatureLog;
 using scheduler::ScheduleEntry;
+using scheduler::ScheduledMode;
 using scheduler::ScheduleManager;
 
 namespace {
@@ -111,13 +112,17 @@ const PowerLog::ConsumptionRate kConsumptionTable[] = {
 };
 
 const ScheduleEntry kDefaultWeekday[] = {
-    ScheduleEntry(6, 0, 23.0f), ScheduleEntry(9, 0, 26.0f),
-    ScheduleEntry(17, 30, 23.5f), ScheduleEntry(22, 0, 25.0f),
+    ScheduleEntry(6, 0, 23.0f, ScheduledMode::kCooling),
+    ScheduleEntry(9, 0, 26.0f, ScheduledMode::kCooling),
+    ScheduleEntry(17, 30, 23.5f, ScheduledMode::kCooling),
+    ScheduleEntry(22, 0, 25.0f, ScheduledMode::kIdle),
 };
 
 const ScheduleEntry kDefaultWeekend[] = {
-    ScheduleEntry(8, 0, 23.5f), ScheduleEntry(12, 0, 25.0f),
-    ScheduleEntry(18, 0, 23.0f), ScheduleEntry(23, 0, 25.5f),
+    ScheduleEntry(8, 0, 23.5f, ScheduledMode::kCooling),
+    ScheduleEntry(12, 0, 25.0f, ScheduledMode::kCooling),
+    ScheduleEntry(18, 0, 23.0f, ScheduledMode::kCooling),
+    ScheduleEntry(23, 0, 25.5f, ScheduledMode::kIdle),
 };
 
 unsigned long lastControlUpdate = 0;

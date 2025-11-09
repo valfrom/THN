@@ -191,10 +191,24 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           <input id="schedulingInput" name="scheduling" type="checkbox" value="true" />
           Enable scheduling
         </label>
-        <label for="weekdayInput">Weekday Schedule (HH:MM=TEMP;…)</label>
-        <textarea id="weekdayInput" name="weekday" rows="3"></textarea>
-        <label for="weekendInput">Weekend Schedule (HH:MM=TEMP;…)</label>
-        <textarea id="weekendInput" name="weekend" rows="3"></textarea>
+        <label for="weekdayInput">
+          Weekday Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
+        </label>
+        <textarea
+          id="weekdayInput"
+          name="weekday"
+          rows="3"
+          placeholder="06:00=23.0|cooling;09:00=26.0|cooling;17:30=23.5|cooling;22:00=25.0|idle"
+        ></textarea>
+        <label for="weekendInput">
+          Weekend Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
+        </label>
+        <textarea
+          id="weekendInput"
+          name="weekend"
+          rows="3"
+          placeholder="08:00=23.5|cooling;12:00=25.0|cooling;18:00=23.0|cooling;23:00=25.5|idle"
+        ></textarea>
         <button type="submit">Save Configuration</button>
         <p id="configStatus"></p>
       </form>
