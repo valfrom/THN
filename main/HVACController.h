@@ -104,6 +104,8 @@ class HVACController {
   bool schedulingEnabled_ = false;
 
   unsigned long lastControlUpdate_ = 0;
+  unsigned long heatingFanLowDelayMs_ = 5UL * 60UL * 1000UL;
+  FanSpeed lastHeatingAutoFanSpeed_ = FanSpeed::kLow;
 };
 
 }  // namespace controller
