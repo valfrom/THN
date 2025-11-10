@@ -126,10 +126,14 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <div>Compressor: <span id="compressor">-</span></div>
         <div>Compressor Timeout: <span id="compressorTimeout">-</span></div>
         <div>Compressor Off Timeout: <span id="compressorOffTimeout">-</span></div>
+        <div>Cooldown Active: <span id="compressorCooldown">-</span></div>
+        <div>Cooldown Remaining: <span id="compressorCooldownRemaining">-</span></div>
         <div>Target: <span id="target">-</span>°C</div>
         <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
         <div>Compressor Temp Limit: <span id="compressorTempLimit">-</span>°C</div>
         <div>Compressor Min Ambient: <span id="compressorMinAmbient">-</span>°C</div>
+        <div>Cooldown Temp: <span id="compressorCooldownTemp">-</span>°C</div>
+        <div>Cooldown Duration: <span id="compressorCooldownMinutes">-</span> min</div>
         <div>Ambient: <span id="ambient">-</span>°C</div>
         <div>Coil: <span id="coil">-</span>°C</div>
         <div>Energy: <span id="energy">-</span> Wh</div>
@@ -165,6 +169,26 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
               name="compressorMinAmbient"
               type="number"
               step="0.1"
+            />
+          </div>
+          <div>
+            <label for="compressorCooldownTempInput">Compressor Cooldown Temp (°C)</label>
+            <input
+              id="compressorCooldownTempInput"
+              name="compressorCooldownTemp"
+              type="number"
+              step="0.1"
+              min="0"
+            />
+          </div>
+          <div>
+            <label for="compressorCooldownMinutesInput">Compressor Cooldown Duration (minutes)</label>
+            <input
+              id="compressorCooldownMinutesInput"
+              name="compressorCooldownMinutes"
+              type="number"
+              step="0.1"
+              min="0"
             />
           </div>
           <div>
@@ -430,6 +454,10 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           formatCompressorTimeout(data.compressorTimeout);
         document.getElementById('compressorOffTimeout').textContent =
           formatCompressorTimeout(data.compressorOffTimeout);
+        document.getElementById('compressorCooldown').textContent =
+          data.compressorCooldown ? 'Active' : 'Idle';
+        document.getElementById('compressorCooldownRemaining').textContent =
+          formatCompressorTimeout(data.compressorCooldownRemaining);
         document.getElementById('target').textContent = toFixedOrDash(data.target);
         document.getElementById('hysteresis').textContent = toFixedOrDash(data.hysteresis);
         document.getElementById('compressorTempLimit').textContent = toFixedOrDash(
@@ -437,6 +465,13 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         );
         document.getElementById('compressorMinAmbient').textContent = toFixedOrDash(
           data.compressorMinAmbient,
+        );
+        document.getElementById('compressorCooldownTemp').textContent = toFixedOrDash(
+          data.compressorCooldownTemp,
+        );
+        document.getElementById('compressorCooldownMinutes').textContent = toFixedOrDash(
+          data.compressorCooldownMinutes,
+          2,
         );
         document.getElementById('ambient').textContent = toFixedOrDash(data.ambient);
         document.getElementById('coil').textContent = toFixedOrDash(data.coil);
@@ -457,6 +492,18 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           compressorMinAmbientValue,
         )
           ? compressorMinAmbientValue.toFixed(1)
+          : '';
+        const compressorCooldownTempValue = Number(data.compressorCooldownTemp);
+        document.getElementById('compressorCooldownTempInput').value = Number.isFinite(
+          compressorCooldownTempValue,
+        )
+          ? compressorCooldownTempValue.toFixed(1)
+          : '';
+        const compressorCooldownMinutesValue = Number(data.compressorCooldownMinutes);
+        document.getElementById('compressorCooldownMinutesInput').value = Number.isFinite(
+          compressorCooldownMinutesValue,
+        )
+          ? compressorCooldownMinutesValue.toFixed(2)
           : '';
         document.getElementById('fanModeInput').value = data.fanMode;
         document.getElementById('systemModeInput').value = data.systemMode;

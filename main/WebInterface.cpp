@@ -47,6 +47,9 @@ void WebInterface::handleState() {
   json += ",\"hysteresis\":" + String(controller_.hysteresis(), 2);
   json += ",\"compressorTempLimit\":" + String(controller_.compressorTemperatureLimit(), 1);
   json += ",\"compressorMinAmbient\":" + String(controller_.compressorMinimumAmbient(), 1);
+  json += ",\"compressorCooldownTemp\":" + String(controller_.compressorCooldownTemperature(), 1);
+  json += ",\"compressorCooldownMinutes\":" +
+          String(controller_.compressorCooldownDurationMinutes(), 2);
   json += ",\"fanMode\":\"" + fanModeToString(controller_.fanMode()) + "\"";
   json += ",\"systemMode\":\"" + systemModeToString(controller_.systemMode()) + "\"";
   json += controller_.schedulingEnabled() ? ",\"scheduling\":true" : ",\"scheduling\":false";
@@ -57,6 +60,11 @@ void WebInterface::handleState() {
   float compressorOffTimeoutSeconds =
       static_cast<float>(controller_.compressor().minimumRuntimeRemaining()) / 1000.0f;
   json += ",\"compressorOffTimeout\":" + String(compressorOffTimeoutSeconds, 1);
+  json += controller_.compressorCooldownActive() ? ",\"compressorCooldown\":true"
+                                                 : ",\"compressorCooldown\":false";
+  float cooldownRemainingSeconds =
+      static_cast<float>(controller_.compressorCooldownRemainingMs()) / 1000.0f;
+  json += ",\"compressorCooldownRemaining\":" + String(cooldownRemainingSeconds, 1);
   json += ",\"fanSpeed\":\"" + fanSpeedToString(controller_.fan().currentSpeed()) + "\"";
 
   const controller::SensorManager &sensors = controller_.sensors();
@@ -152,6 +160,13 @@ void WebInterface::handleConfig() {
   }
   if (server_.hasArg("compressorMinAmbient")) {
     controller_.setCompressorMinimumAmbient(server_.arg("compressorMinAmbient").toFloat());
+  }
+  if (server_.hasArg("compressorCooldownTemp")) {
+    controller_.setCompressorCooldownTemperature(server_.arg("compressorCooldownTemp").toFloat());
+  }
+  if (server_.hasArg("compressorCooldownMinutes")) {
+    controller_.setCompressorCooldownDurationMinutes(
+        server_.arg("compressorCooldownMinutes").toFloat());
   }
   if (server_.hasArg("fanMode")) {
     controller_.setFanMode(fanModeFromString(server_.arg("fanMode")));

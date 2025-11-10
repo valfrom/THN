@@ -10,6 +10,8 @@ constexpr const char *kKeyTarget = "target";
 constexpr const char *kKeyHysteresis = "hysteresis";
 constexpr const char *kKeyCompressorTempLimit = "compressorTempLimit";
 constexpr const char *kKeyCompressorMinAmbient = "compressorMinAmbient";
+constexpr const char *kKeyCompressorCooldownTemp = "compressorCooldownTemp";
+constexpr const char *kKeyCompressorCooldownMinutes = "compressorCooldownMinutes";
 constexpr const char *kKeyFanMode = "fanMode";
 constexpr const char *kKeySystemMode = "systemMode";
 constexpr const char *kKeyScheduling = "scheduling";
@@ -63,6 +65,12 @@ bool SettingsStorage::load(controller::HVACController &hvac,
     } else if (key.equalsIgnoreCase(kKeyCompressorMinAmbient)) {
       hvac.setCompressorMinimumAmbient(value.toFloat());
       applied = true;
+    } else if (key.equalsIgnoreCase(kKeyCompressorCooldownTemp)) {
+      hvac.setCompressorCooldownTemperature(value.toFloat());
+      applied = true;
+    } else if (key.equalsIgnoreCase(kKeyCompressorCooldownMinutes)) {
+      hvac.setCompressorCooldownDurationMinutes(value.toFloat());
+      applied = true;
     } else if (key.equalsIgnoreCase(kKeyFanMode)) {
       hvac.setFanMode(fanModeFromString(value));
       applied = true;
@@ -106,6 +114,9 @@ bool SettingsStorage::save(const controller::HVACController &hvac,
   file.printf("%s=%.2f\n", kKeyHysteresis, hvac.hysteresis());
   file.printf("%s=%.1f\n", kKeyCompressorTempLimit, hvac.compressorTemperatureLimit());
   file.printf("%s=%.1f\n", kKeyCompressorMinAmbient, hvac.compressorMinimumAmbient());
+  file.printf("%s=%.1f\n", kKeyCompressorCooldownTemp, hvac.compressorCooldownTemperature());
+  file.printf("%s=%.2f\n", kKeyCompressorCooldownMinutes,
+              hvac.compressorCooldownDurationMinutes());
   file.printf("%s=%s\n", kKeyFanMode, fanModeToString(hvac.fanMode()).c_str());
   file.printf("%s=%s\n", kKeySystemMode, systemModeToString(hvac.systemMode()).c_str());
   file.printf("%s=%s\n", kKeyScheduling, hvac.schedulingEnabled() ? "true" : "false");

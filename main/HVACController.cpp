@@ -1,5 +1,7 @@
 #include "HVACController.h"
 
+#include <limits>
+
 #include "PowerLog.h"
 #include "TemperatureLog.h"
 #include "ScheduleManager.h"
@@ -48,6 +50,39 @@ void HVACController::setCompressorMinimumAmbient(float minimumAmbient) {
   compressorMinAmbientC_ = max(0.0f, minimumAmbient);
 }
 
+void HVACController::setCompressorCooldownTemperature(float temperature) {
+  if (isnan(temperature) || temperature < 0.0f) {
+    return;
+  }
+  compressorCooldownTemperature_ = temperature;
+}
+
+void HVACController::setCompressorCooldownDurationMinutes(float minutes) {
+  if (isnan(minutes) || minutes < 0.0f) {
+    return;
+  }
+  compressorCooldownDurationMinutes_ = minutes;
+  double durationMs = static_cast<double>(minutes) * 60.0 * 1000.0;
+  if (durationMs < 0.0) {
+    durationMs = 0.0;
+  }
+  double maxValue = static_cast<double>(std::numeric_limits<unsigned long>::max());
+  if (durationMs > maxValue) {
+    durationMs = maxValue;
+  }
+  compressorCooldownDurationMs_ = static_cast<unsigned long>(durationMs);
+}
+
+bool HVACController::compressorCooldownActive() const { return cooldownActive(); }
+
+unsigned long HVACController::compressorCooldownRemainingMs() const {
+  if (!cooldownActive()) {
+    return 0;
+  }
+  unsigned long now = millis();
+  return compressorCooldownUntil_ > now ? (compressorCooldownUntil_ - now) : 0;
+}
+
 void HVACController::enableScheduling(bool enabled) { schedulingEnabled_ = enabled; }
 
 void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
@@ -61,6 +96,7 @@ void HVACController::setSystemMode(SystemMode mode) {
 
 void HVACController::update() {
   unsigned long now = millis();
+  updateCooldownState();
   if ((now - lastControlUpdate_) < kControlUpdateIntervalMs) {
     compressor_.update();
     updateFanState();
@@ -76,6 +112,11 @@ void HVACController::update() {
 }
 
 void HVACController::applyControlLogic() {
+  if (cooldownActive()) {
+    compressor_.forceOff();
+    return;
+  }
+
   if (systemMode_ != SystemMode::kCooling && systemMode_ != SystemMode::kHeating) {
     compressor_.requestOff();
     return;
@@ -103,6 +144,17 @@ void HVACController::applyControlLogic() {
     compressor_.requestOff();
     return;
   }
+
+  if (compressor_.isRunning() && sensors_.hasCoil()) {
+    float coilTemperature = sensors_.coil().value;
+    if (!isnan(coilTemperature) && coilTemperature <= compressorCooldownTemperature_ &&
+        compressor_.minimumRuntimeRemaining() == 0) {
+      compressorCooldownUntil_ = millis() + compressorCooldownDurationMs_;
+      compressor_.forceOff();
+      return;
+    }
+  }
+
   float upper = targetTemperature_ + (hysteresis_ / 2.0f);
   float lower = targetTemperature_ - (hysteresis_ / 2.0f);
 
@@ -138,6 +190,13 @@ void HVACController::applyControlLogic() {
 }
 
 void HVACController::updateFanState() {
+  if (cooldownActive()) {
+    fan_.setRequestedSpeed(FanSpeed::kOff);
+    fan_.enforceMinimumSpeed(FanSpeed::kOff);
+    fan_.update();
+    return;
+  }
+
   FanSpeed desired = FanSpeed::kOff;
   if (systemMode_ == SystemMode::kIdle) {
     desired = FanSpeed::kOff;
@@ -179,6 +238,26 @@ void HVACController::logState() {
     temperatureLog_.addReading(timestamp, ambient, coil);
   }
   powerLog_.logState(timestamp, fan_.currentSpeed(), compressor_.isRunning());
+}
+
+void HVACController::updateCooldownState() {
+  if (compressorCooldownUntil_ == 0) {
+    return;
+  }
+  unsigned long now = millis();
+  long remaining = static_cast<long>(compressorCooldownUntil_ - now);
+  if (remaining <= 0) {
+    compressorCooldownUntil_ = 0;
+  }
+}
+
+bool HVACController::cooldownActive() const {
+  if (compressorCooldownUntil_ == 0) {
+    return false;
+  }
+  unsigned long now = millis();
+  long remaining = static_cast<long>(compressorCooldownUntil_ - now);
+  return remaining > 0;
 }
 
 }  // namespace controller

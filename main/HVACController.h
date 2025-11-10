@@ -53,6 +53,17 @@ class HVACController {
   void setCompressorMinimumAmbient(float minimumAmbient);
   float compressorMinimumAmbient() const { return compressorMinAmbientC_; }
 
+  void setCompressorCooldownTemperature(float temperature);
+  float compressorCooldownTemperature() const { return compressorCooldownTemperature_; }
+
+  void setCompressorCooldownDurationMinutes(float minutes);
+  float compressorCooldownDurationMinutes() const {
+    return compressorCooldownDurationMinutes_;
+  }
+
+  bool compressorCooldownActive() const;
+  unsigned long compressorCooldownRemainingMs() const;
+
   SensorManager &sensors() { return sensors_; }
   const SensorManager &sensors() const { return sensors_; }
 
@@ -70,6 +81,8 @@ class HVACController {
   void applyControlLogic();
   void updateFanState();
   void logState();
+  void updateCooldownState();
+  bool cooldownActive() const;
 
   Compressor &compressor_;
   FanController &fan_;
@@ -82,6 +95,10 @@ class HVACController {
   float hysteresis_ = 1.0f;
   float compressorTemperatureLimit_ = 60.0f;
   float compressorMinAmbientC_ = 4.0f;
+  float compressorCooldownTemperature_ = 30.0f;
+  float compressorCooldownDurationMinutes_ = 30.0f;
+  unsigned long compressorCooldownDurationMs_ = 30UL * 60UL * 1000UL;
+  unsigned long compressorCooldownUntil_ = 0;
   FanMode fanMode_ = FanMode::kAuto;
   SystemMode systemMode_ = SystemMode::kCooling;
   bool schedulingEnabled_ = false;
