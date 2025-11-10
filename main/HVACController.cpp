@@ -254,10 +254,16 @@ void HVACController::updateFanState() {
             }
           }
         }
-        if (!compressorRunning) {
-          autoSpeed = FanSpeed::kLow;
+        if (!compressorRunning && systemMode_ == SystemMode::kHeating) {
+          unsigned long timeSinceOff = compressor_.timeSinceLastOff();
+          if (timeSinceOff < heatingFanLowDelayMs_) {
+            autoSpeed = lastHeatingAutoFanSpeed_;
+          }
         }
         desired = forceLowFan ? FanSpeed::kLow : autoSpeed;
+        if (systemMode_ == SystemMode::kHeating && compressorRunning) {
+          lastHeatingAutoFanSpeed_ = desired;
+        }
         break;
       }
       case FanMode::kOff:
