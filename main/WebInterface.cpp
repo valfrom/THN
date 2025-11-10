@@ -303,31 +303,37 @@ scheduler::ScheduledMode WebInterface::scheduleModeFromString(const String &valu
 
 void WebInterface::appendTemperatureLog(String &json, size_t maxEntries) const {
   json += ",\"temperatureLog\":[";
-  size_t count = 0;
+  size_t appended = 0;
+  size_t processed = 0;
+  size_t total = temperatureLog_.size();
+  size_t skip = total > maxEntries ? total - maxEntries : 0;
   temperatureLog_.forEach([&](const logging::TemperatureLog::Entry &entry) {
-    if (count >= maxEntries) {
+    if (processed++ < skip) {
       return;
     }
-    if (count > 0) {
+    if (appended > 0) {
       json += ",";
     }
     String ambient = isnan(entry.ambient) ? String("null") : String(entry.ambient, 2);
     String coil = isnan(entry.coil) ? String("null") : String(entry.coil, 2);
     json += "{\"t\":" + String(entry.timestamp) + ",\"ambient\":" +
             ambient + ",\"coil\":" + coil + "}";
-    ++count;
+    ++appended;
   });
   json += "]";
 }
 
 void WebInterface::appendPowerLog(String &json, size_t maxEntries) const {
   json += ",\"powerLog\":[";
-  size_t count = 0;
+  size_t appended = 0;
+  size_t processed = 0;
+  size_t total = powerLog_.size();
+  size_t skip = total > maxEntries ? total - maxEntries : 0;
   powerLog_.forEach([&](const logging::PowerLog::Entry &entry) {
-    if (count >= maxEntries) {
+    if (processed++ < skip) {
       return;
     }
-    if (count > 0) {
+    if (appended > 0) {
       json += ",";
     }
     json += "{\"t\":" + String(entry.timestamp) +
@@ -335,7 +341,7 @@ void WebInterface::appendPowerLog(String &json, size_t maxEntries) const {
             ",\"watts\":" + String(entry.instantaneousWatts, 1) +
             ",\"fan\":\"" + fanSpeedToString(entry.fanSpeed) +
             "\",\"compressor\":" + String(entry.compressorActive ? "true" : "false") + "}";
-    ++count;
+    ++appended;
   });
   json += "]";
   json += ",\"energyWh\":" + String(powerLog_.totalEnergyWh(), 2);
