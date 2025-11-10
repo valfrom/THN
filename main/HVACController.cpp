@@ -1,5 +1,6 @@
 #include "HVACController.h"
 
+#include <cmath>
 #include <limits>
 
 #include "PowerLog.h"
@@ -11,6 +12,8 @@ namespace controller {
 namespace {
 constexpr unsigned long kControlUpdateIntervalMs = 1000;
 constexpr unsigned long kCooldownMinimumRuntimeMs = 5UL * 60UL * 1000UL;
+constexpr float kCooldownCoilTemperatureThresholdC = 20.0f;
+constexpr float kCooldownTemperatureDeltaThresholdC = 5.0f;
 }
 
 HVACController::HVACController(Compressor &compressor,
@@ -146,9 +149,10 @@ void HVACController::applyControlLogic() {
     return;
   }
 
-  if (compressor_.isRunning() && sensors_.hasCoil()) {
+  if (systemMode_ == SystemMode::kHeating && compressor_.isRunning() && sensors_.hasCoil()) {
     float coilTemperature = sensors_.coil().value;
-    if (!isnan(coilTemperature) && coilTemperature <= compressorCooldownTemperature_ &&
+    if (!isnan(coilTemperature) && coilTemperature < kCooldownCoilTemperatureThresholdC &&
+        std::fabs(ambient - coilTemperature) < kCooldownTemperatureDeltaThresholdC &&
         compressor_.minimumRuntimeRemaining() == 0 &&
         compressor_.timeSinceLastOn() >= kCooldownMinimumRuntimeMs) {
       compressorCooldownUntil_ = millis() + compressorCooldownDurationMs_;
