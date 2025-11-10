@@ -10,6 +10,7 @@ namespace controller {
 
 namespace {
 constexpr unsigned long kControlUpdateIntervalMs = 1000;
+constexpr unsigned long kCooldownMinimumRuntimeMs = 5UL * 60UL * 1000UL;
 }
 
 HVACController::HVACController(Compressor &compressor,
@@ -148,7 +149,8 @@ void HVACController::applyControlLogic() {
   if (compressor_.isRunning() && sensors_.hasCoil()) {
     float coilTemperature = sensors_.coil().value;
     if (!isnan(coilTemperature) && coilTemperature <= compressorCooldownTemperature_ &&
-        compressor_.minimumRuntimeRemaining() == 0) {
+        compressor_.minimumRuntimeRemaining() == 0 &&
+        compressor_.timeSinceLastOn() >= kCooldownMinimumRuntimeMs) {
       compressorCooldownUntil_ = millis() + compressorCooldownDurationMs_;
       compressor_.forceOff();
       return;
