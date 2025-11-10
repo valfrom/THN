@@ -204,8 +204,30 @@ void HVACController::updateFanState() {
   }
 
   FanSpeed desired = FanSpeed::kOff;
+  auto manualFanSpeed = [](FanMode mode) {
+    switch (mode) {
+      case FanMode::kOff:
+        return FanSpeed::kOff;
+      case FanMode::kLow:
+        return FanSpeed::kLow;
+      case FanMode::kMedium:
+        return FanSpeed::kMedium;
+      case FanMode::kHigh:
+        return FanSpeed::kHigh;
+      case FanMode::kAuto:
+        break;
+    }
+    return FanSpeed::kOff;
+  };
+
   if (systemMode_ == SystemMode::kIdle) {
     desired = FanSpeed::kOff;
+  } else if (systemMode_ == SystemMode::kFanOnly) {
+    if (fanMode_ == FanMode::kAuto) {
+      desired = FanSpeed::kLow;
+    } else {
+      desired = manualFanSpeed(fanMode_);
+    }
   } else {
     switch (fanMode_) {
       case FanMode::kAuto: {
@@ -235,16 +257,10 @@ void HVACController::updateFanState() {
         break;
       }
       case FanMode::kOff:
-        desired = FanSpeed::kOff;
-        break;
       case FanMode::kLow:
-        desired = FanSpeed::kLow;
-        break;
       case FanMode::kMedium:
-        desired = FanSpeed::kMedium;
-        break;
       case FanMode::kHigh:
-        desired = FanSpeed::kHigh;
+        desired = manualFanSpeed(fanMode_);
         break;
     }
   }
