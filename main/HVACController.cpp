@@ -231,15 +231,16 @@ void HVACController::updateFanState() {
   } else {
     switch (fanMode_) {
       case FanMode::kAuto: {
+        bool compressorRunning = compressor_.isRunning();
         bool forceLowFan = false;
         if (systemMode_ == SystemMode::kHeating && sensors_.hasCoil()) {
           float coilTemperature = sensors_.coil().value;
           forceLowFan =
               !isnan(coilTemperature) && coilTemperature < compressorCooldownTemperature_;
         }
-        FanSpeed autoSpeed = compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kLow;
-        if (systemMode_ == SystemMode::kHeating && sensors_.hasAmbient() &&
-            sensors_.hasCoil()) {
+        FanSpeed autoSpeed = compressorRunning ? FanSpeed::kMedium : FanSpeed::kLow;
+        if (compressorRunning && systemMode_ == SystemMode::kHeating &&
+            sensors_.hasAmbient() && sensors_.hasCoil()) {
           float ambientTemperature = sensors_.ambient().value;
           float coilTemperature = sensors_.coil().value;
           if (!isnan(ambientTemperature) && !isnan(coilTemperature)) {
@@ -252,6 +253,9 @@ void HVACController::updateFanState() {
               autoSpeed = FanSpeed::kHigh;
             }
           }
+        }
+        if (!compressorRunning) {
+          autoSpeed = FanSpeed::kLow;
         }
         desired = forceLowFan ? FanSpeed::kLow : autoSpeed;
         break;
