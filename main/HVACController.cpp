@@ -94,7 +94,7 @@ void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
 void HVACController::setSystemMode(SystemMode mode) {
   systemMode_ = mode;
   if (systemMode_ == SystemMode::kIdle || systemMode_ == SystemMode::kFanOnly) {
-    compressor_.requestOff();
+    compressor_.forceOff();
   }
 }
 
