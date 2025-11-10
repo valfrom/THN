@@ -215,9 +215,23 @@ void HVACController::updateFanState() {
           forceLowFan =
               !isnan(coilTemperature) && coilTemperature < compressorCooldownTemperature_;
         }
-        desired =
-            forceLowFan ? FanSpeed::kLow
-                        : (compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kLow);
+        FanSpeed autoSpeed = compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kLow;
+        if (systemMode_ == SystemMode::kHeating && sensors_.hasAmbient() &&
+            sensors_.hasCoil()) {
+          float ambientTemperature = sensors_.ambient().value;
+          float coilTemperature = sensors_.coil().value;
+          if (!isnan(ambientTemperature) && !isnan(coilTemperature)) {
+            float temperatureDifference = std::fabs(ambientTemperature - coilTemperature);
+            if (temperatureDifference < 6.0f) {
+              autoSpeed = FanSpeed::kLow;
+            } else if (temperatureDifference < 10.0f) {
+              autoSpeed = FanSpeed::kMedium;
+            } else {
+              autoSpeed = FanSpeed::kHigh;
+            }
+          }
+        }
+        desired = forceLowFan ? FanSpeed::kLow : autoSpeed;
         break;
       }
       case FanMode::kOff:
