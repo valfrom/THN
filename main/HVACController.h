@@ -83,6 +83,9 @@ class HVACController {
   void logState();
   void updateCooldownState();
   bool cooldownActive() const;
+  FanSpeed resolveHeatingFanSpeed(FanSpeed targetSpeed,
+                                  bool compressorRunning,
+                                  bool forceLowFan);
 
   Compressor &compressor_;
   FanController &fan_;
@@ -105,7 +108,11 @@ class HVACController {
 
   unsigned long lastControlUpdate_ = 0;
   unsigned long heatingFanLowDelayMs_ = 5UL * 60UL * 1000UL;
+  unsigned long heatingFanSpeedChangeDelayMs_ = 30UL * 1000UL;
   FanSpeed lastHeatingAutoFanSpeed_ = FanSpeed::kLow;
+  bool heatingFanSpeedChangeScheduled_ = false;
+  FanSpeed scheduledHeatingAutoFanSpeed_ = FanSpeed::kLow;
+  unsigned long heatingFanSpeedChangeEffectiveAt_ = 0;
 };
 
 }  // namespace controller

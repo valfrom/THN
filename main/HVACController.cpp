@@ -197,6 +197,9 @@ void HVACController::applyControlLogic() {
 
 void HVACController::updateFanState() {
   if (cooldownActive()) {
+    heatingFanSpeedChangeScheduled_ = false;
+    heatingFanSpeedChangeEffectiveAt_ = 0;
+    lastHeatingAutoFanSpeed_ = FanSpeed::kOff;
     fan_.setRequestedSpeed(FanSpeed::kOff);
     fan_.enforceMinimumSpeed(FanSpeed::kOff);
     fan_.update();
@@ -254,15 +257,10 @@ void HVACController::updateFanState() {
             }
           }
         }
-        if (!compressorRunning && systemMode_ == SystemMode::kHeating) {
-          unsigned long timeSinceOff = compressor_.timeSinceLastOff();
-          if (timeSinceOff < heatingFanLowDelayMs_) {
-            autoSpeed = lastHeatingAutoFanSpeed_;
-          }
-        }
-        desired = forceLowFan ? FanSpeed::kLow : autoSpeed;
-        if (systemMode_ == SystemMode::kHeating && compressorRunning) {
-          lastHeatingAutoFanSpeed_ = desired;
+        if (systemMode_ == SystemMode::kHeating) {
+          desired = resolveHeatingFanSpeed(autoSpeed, compressorRunning, forceLowFan);
+        } else {
+          desired = forceLowFan ? FanSpeed::kLow : autoSpeed;
         }
         break;
       }
@@ -275,6 +273,11 @@ void HVACController::updateFanState() {
     }
   }
 
+  if (systemMode_ != SystemMode::kHeating || fanMode_ != FanMode::kAuto) {
+    heatingFanSpeedChangeScheduled_ = false;
+    heatingFanSpeedChangeEffectiveAt_ = 0;
+  }
+
   fan_.setRequestedSpeed(desired);
 
   if ((systemMode_ == SystemMode::kCooling || systemMode_ == SystemMode::kHeating) &&
@@ -283,6 +286,58 @@ void HVACController::updateFanState() {
   }
 
   fan_.update();
+}
+
+FanSpeed HVACController::resolveHeatingFanSpeed(FanSpeed targetSpeed,
+                                                bool compressorRunning,
+                                                bool forceLowFan) {
+  unsigned long now = millis();
+
+  if (forceLowFan) {
+    heatingFanSpeedChangeScheduled_ = false;
+    heatingFanSpeedChangeEffectiveAt_ = 0;
+    lastHeatingAutoFanSpeed_ = FanSpeed::kLow;
+    return FanSpeed::kLow;
+  }
+
+  if (heatingFanSpeedChangeScheduled_) {
+    long remaining = static_cast<long>(heatingFanSpeedChangeEffectiveAt_ - now);
+    if (remaining <= 0) {
+      lastHeatingAutoFanSpeed_ = scheduledHeatingAutoFanSpeed_;
+      heatingFanSpeedChangeScheduled_ = false;
+      heatingFanSpeedChangeEffectiveAt_ = 0;
+    }
+  }
+
+  FanSpeed current = lastHeatingAutoFanSpeed_;
+
+  if (heatingFanSpeedChangeScheduled_) {
+    if (scheduledHeatingAutoFanSpeed_ != targetSpeed) {
+      heatingFanSpeedChangeScheduled_ = false;
+      heatingFanSpeedChangeEffectiveAt_ = 0;
+    } else {
+      return current;
+    }
+  }
+
+  if (targetSpeed == current) {
+    return current;
+  }
+
+  unsigned long delay = heatingFanSpeedChangeDelayMs_;
+  if (!compressorRunning && targetSpeed == FanSpeed::kLow) {
+    delay = heatingFanLowDelayMs_;
+  }
+
+  if (delay == 0) {
+    lastHeatingAutoFanSpeed_ = targetSpeed;
+    return targetSpeed;
+  }
+
+  heatingFanSpeedChangeScheduled_ = true;
+  scheduledHeatingAutoFanSpeed_ = targetSpeed;
+  heatingFanSpeedChangeEffectiveAt_ = now + delay;
+  return current;
 }
 
 void HVACController::logState() {
