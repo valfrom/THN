@@ -207,6 +207,7 @@ void HVACController::updateFanState() {
   }
 
   FanSpeed desired = FanSpeed::kOff;
+  bool compressorActive = compressor_.isRunning() || compressor_.isRequested();
   auto manualFanSpeed = [](FanMode mode) {
     switch (mode) {
       case FanMode::kOff:
@@ -224,7 +225,7 @@ void HVACController::updateFanState() {
   };
 
   if (systemMode_ == SystemMode::kIdle) {
-    desired = FanSpeed::kOff;
+    desired = compressorActive ? FanSpeed::kLow : FanSpeed::kOff;
   } else if (systemMode_ == SystemMode::kFanOnly) {
     if (fanMode_ == FanMode::kAuto) {
       desired = FanSpeed::kLow;
@@ -280,8 +281,7 @@ void HVACController::updateFanState() {
 
   fan_.setRequestedSpeed(desired);
 
-  if ((systemMode_ == SystemMode::kCooling || systemMode_ == SystemMode::kHeating) &&
-      (compressor_.isRunning() || compressor_.isRequested())) {
+  if (compressorActive) {
     fan_.enforceMinimumSpeed(FanSpeed::kLow);
   }
 
