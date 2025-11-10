@@ -152,7 +152,7 @@ void HVACController::applyControlLogic() {
   if (systemMode_ == SystemMode::kHeating && compressor_.isRunning() && sensors_.hasCoil()) {
     float coilTemperature = sensors_.coil().value;
     if (!isnan(coilTemperature) && coilTemperature < kCooldownCoilTemperatureThresholdC &&
-        std::fabs(ambient - coilTemperature) < kCooldownTemperatureDeltaThresholdC &&
+        coilTemperature - ambient < kCooldownTemperatureDeltaThresholdC &&
         compressor_.minimumRuntimeRemaining() == 0 &&
         compressor_.timeSinceLastOn() >= kCooldownMinimumRuntimeMs) {
       compressorCooldownUntil_ = millis() + compressorCooldownDurationMs_;
@@ -221,7 +221,7 @@ void HVACController::updateFanState() {
           float ambientTemperature = sensors_.ambient().value;
           float coilTemperature = sensors_.coil().value;
           if (!isnan(ambientTemperature) && !isnan(coilTemperature)) {
-            float temperatureDifference = std::fabs(ambientTemperature - coilTemperature);
+            float temperatureDifference = coilTemperature - ambientTemperature;
             if (temperatureDifference < 5.0f) {
               autoSpeed = FanSpeed::kLow;
             } else if (temperatureDifference < 8.0f) {
