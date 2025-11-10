@@ -89,10 +89,19 @@ unsigned long HVACController::compressorCooldownRemainingMs() const {
 
 void HVACController::enableScheduling(bool enabled) { schedulingEnabled_ = enabled; }
 
-void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
+void HVACController::setFanMode(FanMode mode) {
+  if (systemMode_ == SystemMode::kFanOnly && mode == FanMode::kOff) {
+    mode = FanMode::kLow;
+  }
+  fanMode_ = mode;
+}
 
 void HVACController::setSystemMode(SystemMode mode) {
   systemMode_ = mode;
+  if (systemMode_ == SystemMode::kFanOnly &&
+      (fanMode_ == FanMode::kOff || fanMode_ == FanMode::kAuto)) {
+    fanMode_ = FanMode::kLow;
+  }
   if (systemMode_ == SystemMode::kIdle || systemMode_ == SystemMode::kFanOnly) {
     compressor_.requestOff();
   }
@@ -247,6 +256,10 @@ void HVACController::updateFanState() {
         desired = FanSpeed::kHigh;
         break;
     }
+  }
+
+  if (systemMode_ == SystemMode::kFanOnly && desired == FanSpeed::kOff) {
+    desired = FanSpeed::kLow;
   }
 
   fan_.setRequestedSpeed(desired);
