@@ -88,9 +88,20 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       .status div {
         min-width: 140px;
       }
-      .log-container {
-        max-height: 240px;
-        overflow-y: auto;
+      .chart-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .chart-card canvas {
+        width: 100%;
+        max-width: 100%;
+      }
+      canvas.chart {
+        display: block;
+        background: #fafbfd;
+        border: 1px solid #d8e0e7;
+        border-radius: 6px;
       }
       .inline {
         display: inline-flex;
@@ -252,37 +263,13 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     <section>
       <h2>Logs</h2>
       <div class="grid">
-        <div>
-          <h3>Temperature Log</h3>
-          <div class="log-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time (ms)</th>
-                  <th>Ambient (°C)</th>
-                  <th>Coil (°C)</th>
-                </tr>
-              </thead>
-              <tbody id="temperatureLog"></tbody>
-            </table>
-          </div>
+        <div class="chart-card">
+          <h3>Temperature (°C)</h3>
+          <canvas id="temperatureChart" class="chart" width="720" height="320"></canvas>
         </div>
-        <div>
-          <h3>Power Log</h3>
-          <div class="log-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time (ms)</th>
-                  <th>Watts</th>
-                  <th>Wh</th>
-                  <th>Fan</th>
-                  <th>Compressor</th>
-                </tr>
-              </thead>
-              <tbody id="powerLog"></tbody>
-            </table>
-          </div>
+        <div class="chart-card">
+          <h3>Power (W)</h3>
+          <canvas id="powerChart" class="chart" width="720" height="320"></canvas>
         </div>
       </div>
     </section>
@@ -337,14 +324,271 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           .join(';');
       }
 
-      function renderLogs(element, entries, fields) {
-        element.innerHTML = entries
-          .map((entry) => {
-            return `<tr>${fields
-              .map((field) => `<td>${entry[field] ?? '-'}</td>`)
-              .join('')}</tr>`;
-          })
-          .join('');
+      function renderLineChart(canvas, series, options = {}) {
+        if (!canvas) {
+          return;
+        }
+        const context = canvas.getContext('2d');
+        if (!context) {
+          return;
+        }
+
+        const width = canvas.width;
+        const height = canvas.height;
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+
+        const processedSeries = series
+          .map((item) => ({
+            label: item.label,
+            color: item.color,
+            data: item.data
+              .map((point) => {
+                const x = Number(point.x);
+                const yValue =
+                  point.y === null || typeof point.y === 'undefined'
+                    ? NaN
+                    : Number(point.y);
+                return {
+                  x,
+                  y: Number.isFinite(yValue) ? yValue : NaN,
+                };
+              })
+              .filter((point) => Number.isFinite(point.x)),
+          }))
+          .filter((item) => item.data.length > 0);
+
+        const drawEmptyState = (message) => {
+          context.fillStyle = '#6b7280';
+          context.font = '14px sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(message, width / 2, height / 2);
+        };
+
+        if (processedSeries.length === 0) {
+          drawEmptyState('No data available');
+          return;
+        }
+
+        const xValues = processedSeries.flatMap((item) => item.data.map((point) => point.x));
+        if (xValues.length === 0) {
+          drawEmptyState('No data available');
+          return;
+        }
+        let xMin = Math.min(...xValues);
+        let xMax = Math.max(...xValues);
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) {
+          drawEmptyState('No data available');
+          return;
+        }
+        if (xMax === xMin) {
+          xMin -= 30000;
+          xMax += 30000;
+        }
+
+        const yValues = processedSeries.flatMap((item) =>
+          item.data.filter((point) => Number.isFinite(point.y)).map((point) => point.y),
+        );
+        if (yValues.length === 0) {
+          drawEmptyState('No data available');
+          return;
+        }
+        let yMin = Math.min(...yValues);
+        let yMax = Math.max(...yValues);
+        if (yMax === yMin) {
+          const padding = yMin === 0 ? 1 : Math.abs(yMin) * 0.1;
+          yMin -= padding;
+          yMax += padding;
+        }
+        const yPadding = (yMax - yMin) * 0.1;
+        if (yPadding > 0) {
+          yMin -= yPadding;
+          yMax += yPadding;
+        }
+
+        const margin = options.margin || { left: 60, right: 18, top: 52, bottom: 42 };
+        const chartWidth = Math.max(1, width - margin.left - margin.right);
+        const chartHeight = Math.max(1, height - margin.top - margin.bottom);
+
+        const xRange = xMax - xMin;
+        const yRange = yMax - yMin;
+        if (xRange <= 0 || yRange <= 0) {
+          drawEmptyState('Waiting for more data');
+          return;
+        }
+
+        const toX = (value) => margin.left + ((value - xMin) / xRange) * chartWidth;
+        const toY = (value) => margin.top + chartHeight - ((value - yMin) / yRange) * chartHeight;
+
+        context.strokeStyle = '#e2e8f0';
+        context.lineWidth = 1;
+        const xTicks = options.xTicks ?? 5;
+        for (let i = 0; i <= xTicks; ++i) {
+          const ratio = i / xTicks;
+          const x = margin.left + ratio * chartWidth;
+          context.beginPath();
+          context.moveTo(x, margin.top);
+          context.lineTo(x, margin.top + chartHeight);
+          context.stroke();
+        }
+        const yTicks = options.yTicks ?? 5;
+        for (let i = 0; i <= yTicks; ++i) {
+          const ratio = i / yTicks;
+          const y = margin.top + chartHeight - ratio * chartHeight;
+          context.beginPath();
+          context.moveTo(margin.left, y);
+          context.lineTo(margin.left + chartWidth, y);
+          context.stroke();
+        }
+
+        context.strokeStyle = '#94a3b8';
+        context.beginPath();
+        context.moveTo(margin.left, margin.top);
+        context.lineTo(margin.left, margin.top + chartHeight);
+        context.lineTo(margin.left + chartWidth, margin.top + chartHeight);
+        context.stroke();
+
+        context.fillStyle = '#475569';
+        context.font = '12px sans-serif';
+        context.textBaseline = 'top';
+        context.textAlign = 'center';
+        const totalMinutes = xRange / 60000;
+        const minuteDecimals =
+          totalMinutes >= 60 ? 0 : totalMinutes >= 10 ? 0 : totalMinutes >= 3 ? 1 : 2;
+        for (let i = 0; i <= xTicks; ++i) {
+          const ratio = i / xTicks;
+          const x = margin.left + ratio * chartWidth;
+          const minutes = (ratio * xRange) / 60000;
+          context.fillText(`${minutes.toFixed(minuteDecimals)} min`, x, margin.top + chartHeight + 8);
+        }
+
+        context.textAlign = 'right';
+        context.textBaseline = 'middle';
+        const yDecimals = yRange >= 50 ? 0 : yRange >= 10 ? 1 : 2;
+        for (let i = 0; i <= yTicks; ++i) {
+          const ratio = i / yTicks;
+          const y = margin.top + chartHeight - ratio * chartHeight;
+          const value = yMin + ratio * yRange;
+          const label = value.toFixed(yDecimals);
+          if (options.yUnit) {
+            context.fillText(`${label} ${options.yUnit}`, margin.left - 8, y);
+          } else {
+            context.fillText(label, margin.left - 8, y);
+          }
+        }
+
+        context.textAlign = 'left';
+        context.textBaseline = 'middle';
+        const legendY = Math.max(18, margin.top - 26);
+        const legendSpacing = 132;
+        processedSeries.forEach((item, index) => {
+          const x = margin.left + index * legendSpacing;
+          context.fillStyle = item.color;
+          context.fillRect(x, legendY, 12, 12);
+          context.fillStyle = '#1f2937';
+          context.fillText(item.label, x + 16, legendY + 6);
+        });
+
+        processedSeries.forEach((item) => {
+          context.beginPath();
+          context.strokeStyle = item.color;
+          context.lineWidth = 2;
+          let started = false;
+          const sorted = [...item.data].sort((a, b) => a.x - b.x);
+          sorted.forEach((point) => {
+            if (!Number.isFinite(point.y)) {
+              started = false;
+              return;
+            }
+            const x = toX(point.x);
+            const y = toY(point.y);
+            if (!started) {
+              context.moveTo(x, y);
+              started = true;
+            } else {
+              context.lineTo(x, y);
+            }
+          });
+          context.stroke();
+        });
+      }
+
+      function renderTemperatureChart(canvas, entries) {
+        const prepared = Array.isArray(entries)
+          ? entries
+              .map((entry) => {
+                const time = Number(entry.t);
+                if (!Number.isFinite(time)) {
+                  return null;
+                }
+                const ambientValue =
+                  entry.ambient === null || typeof entry.ambient === 'undefined'
+                    ? NaN
+                    : Number(entry.ambient);
+                const coilValue =
+                  entry.coil === null || typeof entry.coil === 'undefined'
+                    ? NaN
+                    : Number(entry.coil);
+                return {
+                  time,
+                  ambient: Number.isFinite(ambientValue) ? ambientValue : NaN,
+                  coil: Number.isFinite(coilValue) ? coilValue : NaN,
+                };
+              })
+              .filter((entry) => entry !== null)
+          : [];
+
+        renderLineChart(
+          canvas,
+          [
+            {
+              label: 'Ambient',
+              color: '#ef6f6c',
+              data: prepared.map((entry) => ({ x: entry.time, y: entry.ambient })),
+            },
+            {
+              label: 'Coil',
+              color: '#3f8efc',
+              data: prepared.map((entry) => ({ x: entry.time, y: entry.coil })),
+            },
+          ],
+          { yUnit: '°C' },
+        );
+      }
+
+      function renderPowerChart(canvas, entries) {
+        const prepared = Array.isArray(entries)
+          ? entries
+              .map((entry) => {
+                const time = Number(entry.t);
+                if (!Number.isFinite(time)) {
+                  return null;
+                }
+                const wattsValue =
+                  entry.watts === null || typeof entry.watts === 'undefined'
+                    ? NaN
+                    : Number(entry.watts);
+                return {
+                  time,
+                  watts: Number.isFinite(wattsValue) ? wattsValue : NaN,
+                };
+              })
+              .filter((entry) => entry !== null)
+          : [];
+
+        renderLineChart(
+          canvas,
+          [
+            {
+              label: 'Watts',
+              color: '#2ca02c',
+              data: prepared.map((entry) => ({ x: entry.time, y: entry.watts })),
+            },
+          ],
+          { yUnit: 'W' },
+        );
       }
 
       function formatTimestamp(epochSeconds) {
@@ -533,18 +777,14 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       }
 
       function updateLogs(data) {
-        renderLogs(document.getElementById('temperatureLog'), data.temperatureLog || [], [
-          't',
-          'ambient',
-          'coil',
-        ]);
-        renderLogs(document.getElementById('powerLog'), data.powerLog || [], [
-          't',
-          'watts',
-          'wh',
-          'fan',
-          'compressor',
-        ]);
+        renderTemperatureChart(
+          document.getElementById('temperatureChart'),
+          data && Array.isArray(data.temperatureLog) ? data.temperatureLog : [],
+        );
+        renderPowerChart(
+          document.getElementById('powerChart'),
+          data && Array.isArray(data.powerLog) ? data.powerLog : [],
+        );
       }
 
       async function refreshState(options = {}) {
