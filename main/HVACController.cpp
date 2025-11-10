@@ -202,9 +202,18 @@ void HVACController::updateFanState() {
     desired = FanSpeed::kOff;
   } else {
     switch (fanMode_) {
-      case FanMode::kAuto:
-        desired = compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kLow;
+      case FanMode::kAuto: {
+        bool forceLowFan = false;
+        if (systemMode_ == SystemMode::kHeating && sensors_.hasCoil()) {
+          float coilTemperature = sensors_.coil().value;
+          forceLowFan =
+              !isnan(coilTemperature) && coilTemperature < compressorCooldownTemperature_;
+        }
+        desired =
+            forceLowFan ? FanSpeed::kLow
+                        : (compressor_.isRunning() ? FanSpeed::kMedium : FanSpeed::kLow);
         break;
+      }
       case FanMode::kOff:
         desired = FanSpeed::kOff;
         break;
