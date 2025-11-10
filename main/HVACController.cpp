@@ -222,9 +222,9 @@ void HVACController::updateFanState() {
           float coilTemperature = sensors_.coil().value;
           if (!isnan(ambientTemperature) && !isnan(coilTemperature)) {
             float temperatureDifference = std::fabs(ambientTemperature - coilTemperature);
-            if (temperatureDifference < 10.0f) {
+            if (temperatureDifference < 5.0f) {
               autoSpeed = FanSpeed::kLow;
-            } else if (temperatureDifference < 15.0f) {
+            } else if (temperatureDifference < 8.0f) {
               autoSpeed = FanSpeed::kMedium;
             } else {
               autoSpeed = FanSpeed::kHigh;
