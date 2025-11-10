@@ -13,7 +13,7 @@ namespace {
 constexpr unsigned long kControlUpdateIntervalMs = 1000;
 constexpr unsigned long kCooldownMinimumRuntimeMs = 5UL * 60UL * 1000UL;
 constexpr float kCooldownCoilTemperatureThresholdC = 20.0f;
-constexpr float kCooldownTemperatureDeltaThresholdC = 5.0f;
+constexpr float kCooldownTemperatureDeltaThresholdC = 2.0f;
 }
 
 HVACController::HVACController(Compressor &compressor,
