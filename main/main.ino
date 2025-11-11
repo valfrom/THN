@@ -106,10 +106,10 @@ HVACController hvac(compressor, fan, sensors, scheduleManager, temperatureLog, p
 WebInterface webInterface(hvac, scheduleManager, temperatureLog, powerLog, &settingsStorage, 80);
 
 const PowerLog::ConsumptionRate kConsumptionTable[] = {
-    {FanSpeed::kOff, false, 5.0f},   {FanSpeed::kLow, false, 90.0f},
-    {FanSpeed::kMedium, false, 110.0f}, {FanSpeed::kHigh, false, 130.0f},
-    {FanSpeed::kLow, true, 550.0f}, {FanSpeed::kMedium, true, 600.0f},
-    {FanSpeed::kHigh, true, 650.0f},
+    {FanSpeed::kOff, false, 5.0f},   {FanSpeed::kLow, false, 110.0f},
+    {FanSpeed::kMedium, false, 125.0f}, {FanSpeed::kHigh, false, 140.0f},
+    {FanSpeed::kLow, true, 600.0f}, {FanSpeed::kMedium, true, 650.0f},
+    {FanSpeed::kHigh, true, 700.0f},
 };
 
 const ScheduleEntry kDefaultWeekday[] = {
