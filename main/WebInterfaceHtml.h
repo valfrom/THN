@@ -359,14 +359,6 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     </section>
 
     <section>
-      <h2>Current</h2>
-      <div class="chart-card">
-        <h3>Power (Last 30 Minutes)</h3>
-        <canvas id="currentPowerChart" class="chart" width="720" height="240"></canvas>
-      </div>
-    </section>
-
-    <section>
       <h2>Logs</h2>
       <div class="grid">
         <div class="chart-card">
@@ -379,7 +371,10 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             <div class="power-controls">
               <span class="power-controls-label">Range</span>
               <div class="power-range-buttons">
-                <button type="button" class="range-button active" data-power-range="day">
+                <button type="button" class="range-button active" data-power-range="current">
+                  Current
+                </button>
+                <button type="button" class="range-button" data-power-range="day">
                   Past day
                 </button>
                 <button type="button" class="range-button" data-power-range="week">
@@ -444,7 +439,6 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         uptimeReceivedAtMs: null,
         clockOffsetMs: null,
       };
-      const currentPowerChart = document.getElementById('currentPowerChart');
       const powerRangeButtons = Array.from(
         document.querySelectorAll('.range-button[data-power-range]'),
       );
@@ -454,12 +448,13 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       const powerRangeMessage = document.getElementById('powerRangeMessage');
       const currentPowerWindowMs = 30 * 60 * 1000;
       const powerRangeDurations = {
+        current: currentPowerWindowMs,
         day: 24 * 60 * 60 * 1000,
         week: 7 * 24 * 60 * 60 * 1000,
         month: 30 * 24 * 60 * 60 * 1000,
         year: 365 * 24 * 60 * 60 * 1000,
       };
-      let selectedPowerRange = 'day';
+      let selectedPowerRange = 'current';
       let lastPowerHistoryRefresh = 0;
       const powerHistoryRefreshIntervalMs = 60 * 1000;
       let powerHistoryRequest = null;
@@ -841,6 +836,9 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       }
 
       function renderPowerChart(canvas, entries, meta = {}) {
+        if (selectedPowerRange === 'current') {
+          return renderCurrentPowerChart(canvas, entries);
+        }
         if (selectedPowerRange === 'day') {
           return renderDayPowerBarChart(canvas, entries);
         }
@@ -1573,7 +1571,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         let fallbackRange = null;
         powerRangeButtons.forEach((button) => {
           const range = button.dataset.powerRange;
-          const enabled = availableCount >= 1;
+          const enabled = availableCount >= 1 || range === 'current';
           button.disabled = !enabled;
           if (enabled && fallbackRange === null) {
             fallbackRange = range;
@@ -1592,7 +1590,6 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
       function applyPowerHistoryResponse(data) {
         const entries = Array.isArray(data?.entries) ? data.entries : [];
-        renderCurrentPowerChart(currentPowerChart, entries);
 
         const chartSummary = renderPowerChart(
           document.getElementById('powerChart'),
@@ -1628,7 +1625,10 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         }
 
         if (filteredCount === 0 || entries.length === 0 || (chartSummary && chartSummary.hasData === false)) {
-          powerRangeMessage.textContent = 'No power history available yet.';
+          powerRangeMessage.textContent =
+            selectedPowerRange === 'current'
+              ? 'No recent power samples.'
+              : 'No power history available yet.';
           return;
         }
 
@@ -1673,6 +1673,20 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             }
           }
           powerRangeMessage.textContent = `Showing hourly averages from the latest 24 hours (${filteredCount} ${sampleLabel}).`;
+          return;
+        }
+
+        if (selectedPowerRange === 'current') {
+          const windowStart = Number(chartSummary.windowStartEpoch);
+          const windowEnd = Number(chartSummary.windowEndEpoch);
+          const durationMs =
+            Number.isFinite(windowStart) && Number.isFinite(windowEnd) && windowEnd >= windowStart
+              ? windowEnd - windowStart
+              : currentPowerWindowMs;
+          const durationText = describeDuration(durationMs);
+          powerRangeMessage.textContent = `Showing ${chartSummary.sampleCount} sample${
+            chartSummary.sampleCount === 1 ? '' : 's'
+          } from the last ${durationText}.`;
           return;
         }
 
@@ -1845,7 +1859,6 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           }
           powerSummaryTotal.textContent = '-';
           powerSummaryAverage.textContent = '-';
-          renderCurrentPowerChart(currentPowerChart, []);
           renderPowerChart(document.getElementById('powerChart'), []);
         } finally {
           powerHistoryRequest = null;
@@ -2176,7 +2189,6 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             }
             powerSummaryTotal.textContent = '-';
             powerSummaryAverage.textContent = '-';
-            renderCurrentPowerChart(currentPowerChart, []);
             renderPowerChart(document.getElementById('powerChart'), []);
             lastPowerHistoryRefresh = 0;
             await refreshPowerHistory(true);
@@ -2193,8 +2205,6 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           }
         });
       }
-
-      renderCurrentPowerChart(currentPowerChart, []);
 
       (async () => {
         try {
