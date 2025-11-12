@@ -32,6 +32,8 @@ class PowerLog {
                 controller::FanSpeed fanSpeed,
                 bool compressorActive);
 
+  void clear();
+
   size_t size() const { return count_; }
 
   template <typename Callback>

@@ -106,6 +106,26 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         border-color: #cbd5e1;
         color: #94a3b8;
       }
+      .danger-button {
+        width: auto;
+        padding: 0.35rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid #dc2626;
+        background: #dc2626;
+        color: #fff;
+        font-weight: 600;
+        transition: background 0.2s ease, border-color 0.2s ease;
+      }
+      .danger-button:hover:not(:disabled) {
+        background: #b91c1c;
+        border-color: #991b1b;
+      }
+      .danger-button:disabled {
+        background: #fca5a5;
+        border-color: #f87171;
+        color: #7f1d1d;
+        cursor: not-allowed;
+      }
       .power-summary {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -364,6 +384,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
                   Past year
                 </button>
               </div>
+              <button type="button" id="resetPowerLogButton" class="danger-button">Reset power log</button>
             </div>
           </div>
           <div class="power-summary">
@@ -415,6 +436,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       const powerRangeButtons = Array.from(
         document.querySelectorAll('.range-button[data-power-range]'),
       );
+      const powerResetButton = document.getElementById('resetPowerLogButton');
       const powerSummaryTotal = document.getElementById('powerSummaryTotal');
       const powerSummaryAverage = document.getElementById('powerSummaryAverage');
       const powerRangeMessage = document.getElementById('powerRangeMessage');
@@ -1263,6 +1285,47 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           }
         });
       });
+
+      if (powerResetButton) {
+        powerResetButton.addEventListener('click', async () => {
+          const confirmed = window.confirm(
+            'Reset power history? This will remove all recorded power log entries.',
+          );
+          if (!confirmed) {
+            return;
+          }
+
+          const originalLabel = powerResetButton.textContent.trim() || 'Reset power log';
+          powerResetButton.disabled = true;
+          powerResetButton.textContent = 'Resetting…';
+
+          try {
+            const response = await fetch('/api/power-log', { method: 'DELETE' });
+            if (!response.ok) {
+              throw new Error('Failed to reset power log');
+            }
+
+            if (powerRangeMessage) {
+              powerRangeMessage.textContent = 'Power history cleared.';
+            }
+            powerSummaryTotal.textContent = '-';
+            powerSummaryAverage.textContent = '-';
+            renderPowerChart(document.getElementById('powerChart'), []);
+            lastPowerHistoryRefresh = 0;
+            await refreshPowerHistory(true);
+          } catch (err) {
+            console.error(err);
+            const message = err && err.message ? err.message : 'Failed to reset power log.';
+            if (powerRangeMessage) {
+              powerRangeMessage.textContent = message;
+            }
+            window.alert(message);
+          } finally {
+            powerResetButton.disabled = false;
+            powerResetButton.textContent = originalLabel;
+          }
+        });
+      }
 
       (async () => {
         try {

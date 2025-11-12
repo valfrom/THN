@@ -35,6 +35,7 @@ void WebInterface::registerRoutes() {
   server_.on("/api/state", HTTP_GET, [this]() { handleState(); });
   server_.on("/api/config", HTTP_POST, [this]() { handleConfig(); });
   server_.on("/api/power-log", HTTP_GET, [this]() { handlePowerLog(); });
+  server_.on("/api/power-log", HTTP_DELETE, [this]() { handlePowerLogReset(); });
   server_.onNotFound([this]() { handleNotFound(); });
 }
 
@@ -357,6 +358,11 @@ void WebInterface::handlePowerLog() {
   json += "}";
 
   server_.send(200, "application/json", json);
+}
+
+void WebInterface::handlePowerLogReset() {
+  powerLog_.clear();
+  server_.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void WebInterface::handleNotFound() { server_.send(404, "application/json", "{\"error\":\"not found\"}"); }
