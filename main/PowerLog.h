@@ -44,6 +44,10 @@ class PowerLog {
     }
   }
 
+  size_t copyEntries(Entry *dest, size_t maxEntries) const;
+  void restoreEntries(const Entry *entries, size_t count, float totalEnergyWh);
+  bool latestEntry(Entry &entry) const;
+
   float totalEnergyWh() const { return totalEnergyWh_; }
 
  private:

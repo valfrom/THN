@@ -26,6 +26,7 @@ class WebInterface {
   void registerRoutes();
   void handleState();
   void handleConfig();
+  void handlePowerLog();
   void handleNotFound();
   void serveIndex();
 

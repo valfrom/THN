@@ -9,6 +9,7 @@
 #include "SensorManager.h"
 #include "WebInterface.h"
 #include "PowerLog.h"
+#include "PowerLogStorage.h"
 #include "TemperatureLog.h"
 #include "ScheduleManager.h"
 #include "SettingsStorage.h"
@@ -101,6 +102,7 @@ SensorManager sensors;
 ScheduleManager scheduleManager;
 TemperatureLog temperatureLog;
 PowerLog powerLog;
+storage::PowerLogStorage powerLogStorage(powerLog);
 SettingsStorage settingsStorage;
 HVACController hvac(compressor, fan, sensors, scheduleManager, temperatureLog, powerLog);
 WebInterface webInterface(hvac, scheduleManager, temperatureLog, powerLog, &settingsStorage, 80);
@@ -274,9 +276,15 @@ void setup() {
   powerLog.setConsumptionTable(kConsumptionTable,
                                sizeof(kConsumptionTable) / sizeof(PowerLog::ConsumptionRate));
 
-  bool storageReady = settingsStorage.begin();
+  bool storageReady = powerLogStorage.begin();
   if (!storageReady) {
-    Serial.println(F("Failed to mount LittleFS; settings persistence disabled."));
+    Serial.println(F("Failed to mount LittleFS; persistence disabled."));
+  } else {
+    if (powerLogStorage.load()) {
+      Serial.println(F("Power log restored from storage."));
+    } else {
+      Serial.println(F("No saved power log found; starting fresh power history."));
+    }
   }
 
   hvac.setSystemMode(SystemMode::kCooling);
@@ -320,5 +328,6 @@ void loop() {
   ArduinoOTA.handle();
   scheduleManager.update(hvac);
   hvac.update();
+  powerLogStorage.update();
   webInterface.handleClient();
 }
