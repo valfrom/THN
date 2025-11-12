@@ -359,6 +359,14 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     </section>
 
     <section>
+      <h2>Current</h2>
+      <div class="chart-card">
+        <h3>Power (Last 30 Minutes)</h3>
+        <canvas id="currentPowerChart" class="chart" width="720" height="240"></canvas>
+      </div>
+    </section>
+
+    <section>
       <h2>Logs</h2>
       <div class="grid">
         <div class="chart-card">
@@ -432,7 +440,11 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         epochSeconds: null,
         receivedAtMs: null,
         formatted: null,
+        uptimeMs: null,
+        uptimeReceivedAtMs: null,
+        clockOffsetMs: null,
       };
+      const currentPowerChart = document.getElementById('currentPowerChart');
       const powerRangeButtons = Array.from(
         document.querySelectorAll('.range-button[data-power-range]'),
       );
@@ -440,6 +452,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       const powerSummaryTotal = document.getElementById('powerSummaryTotal');
       const powerSummaryAverage = document.getElementById('powerSummaryAverage');
       const powerRangeMessage = document.getElementById('powerRangeMessage');
+      const currentPowerWindowMs = 30 * 60 * 1000;
       const powerRangeDurations = {
         day: 24 * 60 * 60 * 1000,
         week: 7 * 24 * 60 * 60 * 1000,
@@ -714,7 +727,142 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         );
       }
 
-      function renderPowerChart(canvas, entries) {
+      function renderCurrentPowerChart(canvas, entries) {
+        const summary = {
+          type: 'current',
+          sampleCount: 0,
+          hasData: false,
+          windowStartEpoch: null,
+          windowEndEpoch: null,
+        };
+        if (!canvas) {
+          return summary;
+        }
+        const context = canvas.getContext('2d');
+        if (!context) {
+          return summary;
+        }
+
+        const drawEmptyState = (message) => {
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.fillStyle = '#ffffff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.fillStyle = '#6b7280';
+          context.font = '14px sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(message, canvas.width / 2, canvas.height / 2);
+        };
+
+        const prepared = Array.isArray(entries)
+          ? entries
+              .map((entry) => {
+                const uptime = Number(entry?.t);
+                if (!Number.isFinite(uptime)) {
+                  return null;
+                }
+                const wattsValue =
+                  entry.watts === null || typeof entry.watts === 'undefined'
+                    ? NaN
+                    : Number(entry.watts);
+                if (!Number.isFinite(wattsValue)) {
+                  return null;
+                }
+                const epochValue = uptimeToEpochMs(uptime);
+                const axisTime = Number.isFinite(epochValue) ? epochValue : uptime;
+                return {
+                  axisTime,
+                  watts: wattsValue,
+                };
+              })
+              .filter((entry) => entry !== null)
+          : [];
+
+        if (prepared.length === 0) {
+          drawEmptyState('No power samples yet.');
+          return summary;
+        }
+
+        const sorted = [...prepared].sort((a, b) => a.axisTime - b.axisTime);
+        const latestEntry = sorted[sorted.length - 1];
+        const latestTime = latestEntry?.axisTime;
+        if (!Number.isFinite(latestTime)) {
+          drawEmptyState('No recent power samples.');
+          return summary;
+        }
+
+        const earliestTime = sorted[0]?.axisTime ?? latestTime;
+        const windowStart = Math.max(latestTime - currentPowerWindowMs, earliestTime);
+        const recent = sorted.filter((entry) => entry.axisTime >= windowStart);
+        if (recent.length === 0) {
+          drawEmptyState('No power samples in the last 30 minutes.');
+          return summary;
+        }
+
+        summary.sampleCount = recent.length;
+        summary.hasData = true;
+        summary.windowStartEpoch = windowStart;
+        summary.windowEndEpoch = latestTime;
+
+        const chartData = [...recent];
+        if (chartData.length > 0 && chartData[0].axisTime > windowStart) {
+          chartData.unshift({ axisTime: windowStart, watts: chartData[0].watts });
+        }
+        if (chartData.length > 0 && chartData[chartData.length - 1].axisTime < latestTime) {
+          chartData.push({ axisTime: latestTime, watts: chartData[chartData.length - 1].watts });
+        }
+
+        const xFormatter = ({ ratio, range }) => {
+          if (!Number.isFinite(range) || range <= 0) {
+            return '';
+          }
+          const minutes = (ratio * range) / 60000;
+          const decimals = range >= 20 * 60000 ? 0 : range >= 5 * 60000 ? 1 : 2;
+          return `${minutes.toFixed(decimals)} min`;
+        };
+
+        renderLineChart(
+          canvas,
+          [
+            {
+              label: 'Watts',
+              color: '#2ca02c',
+              data: chartData.map((entry) => ({ x: entry.axisTime, y: entry.watts })),
+            },
+          ],
+          {
+            yUnit: 'W',
+            xFormatter,
+            margin: { left: 60, right: 18, top: 48, bottom: 48 },
+          },
+        );
+
+        return summary;
+      }
+
+      function renderPowerChart(canvas, entries, meta = {}) {
+        if (selectedPowerRange === 'day') {
+          return renderDayPowerBarChart(canvas, entries);
+        }
+        if (selectedPowerRange === 'week') {
+          return renderRecentDailyUsageChart(canvas, entries, meta, {
+            days: 7,
+            title: 'Daily Energy (Last 7 Days)',
+          });
+        }
+        if (selectedPowerRange === 'month') {
+          return renderRecentDailyUsageChart(canvas, entries, meta, {
+            days: 30,
+            title: 'Daily Energy (Last 30 Days)',
+          });
+        }
+        if (selectedPowerRange === 'year') {
+          return renderRecentMonthlyUsageChart(canvas, entries, meta, {
+            months: 12,
+            title: 'Monthly Energy (Last 12 Months)',
+          });
+        }
+
         const prepared = Array.isArray(entries)
           ? entries
               .map((entry) => {
@@ -771,6 +919,503 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           ],
           { yUnit: 'W', xFormatter },
         );
+
+        return {
+          type: 'line',
+          hasData: prepared.length > 0,
+          sampleCount: prepared.length,
+        };
+      }
+
+      function renderDayPowerBarChart(canvas, entries) {
+        const summary = {
+          type: 'day',
+          sampleCount: Array.isArray(entries) ? entries.length : 0,
+          hasData: false,
+          buckets: [],
+          coveredBuckets: 0,
+          dayStartEpoch: null,
+        };
+        if (!canvas) {
+          return summary;
+        }
+        const context = canvas.getContext('2d');
+        if (!context) {
+          return summary;
+        }
+
+        const width = canvas.width;
+        const height = canvas.height;
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+
+        const drawEmptyState = (message) => {
+          context.fillStyle = '#6b7280';
+          context.font = '14px sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(message, width / 2, height / 2);
+        };
+
+        let latestSampleUptime = null;
+        if (Array.isArray(entries)) {
+          entries.forEach((entry) => {
+            const time = Number(entry.t);
+            if (!Number.isFinite(time)) {
+              return;
+            }
+            if (!Number.isFinite(latestSampleUptime) || time > latestSampleUptime) {
+              latestSampleUptime = time;
+            }
+          });
+        }
+
+        const referenceEpochMs = estimateReferenceEpochMs(latestSampleUptime);
+        const referenceDate = new Date(referenceEpochMs);
+        referenceDate.setHours(0, 0, 0, 0);
+        const dayStartEpoch = referenceDate.getTime();
+        const dayEndEpoch = dayStartEpoch + 24 * 60 * 60 * 1000;
+        summary.dayStartEpoch = dayStartEpoch;
+
+        const buckets = Array.from({ length: 24 }, () => ({ sum: 0, count: 0 }));
+        if (Array.isArray(entries)) {
+          entries.forEach((entry) => {
+            const time = Number(entry.t);
+            const wattsValue =
+              entry.watts === null || typeof entry.watts === 'undefined'
+                ? NaN
+                : Number(entry.watts);
+            if (!Number.isFinite(time) || !Number.isFinite(wattsValue)) {
+              return;
+            }
+            const epochMs = uptimeToEpochMs(time);
+            if (!Number.isFinite(epochMs)) {
+              return;
+            }
+            if (epochMs < dayStartEpoch || epochMs >= dayEndEpoch) {
+              return;
+            }
+            const hourIndex = Math.floor((epochMs - dayStartEpoch) / 3600000);
+            if (hourIndex < 0 || hourIndex >= buckets.length) {
+              return;
+            }
+            buckets[hourIndex].sum += wattsValue;
+            buckets[hourIndex].count += 1;
+          });
+        }
+
+        const hasSamples = buckets.some((bucket) => bucket.count > 0);
+        summary.hasData = hasSamples;
+        summary.coveredBuckets = buckets.filter((bucket) => bucket.count > 0).length;
+        summary.buckets = buckets.map((bucket, index) => ({
+          start: dayStartEpoch + index * 3600000,
+          end: dayStartEpoch + (index + 1) * 3600000,
+          averageWatts: bucket.count > 0 ? bucket.sum / bucket.count : 0,
+          count: bucket.count,
+        }));
+        if (!hasSamples) {
+          drawEmptyState('No power samples for this day yet');
+          return summary;
+        }
+
+        const averages = buckets.map((bucket) =>
+          bucket.count > 0 ? bucket.sum / bucket.count : 0,
+        );
+        const maxAverage = Math.max(...averages);
+        const yMax = maxAverage > 0 ? Math.max(maxAverage * 1.1, maxAverage + 5) : 10;
+        const yTicks = 5;
+        const margin = { left: 60, right: 18, top: 48, bottom: 56 };
+        const chartWidth = Math.max(1, width - margin.left - margin.right);
+        const chartHeight = Math.max(1, height - margin.top - margin.bottom);
+
+        const toY = (value) =>
+          margin.top + chartHeight - Math.min(1, Math.max(0, value / yMax)) * chartHeight;
+
+        context.strokeStyle = '#e2e8f0';
+        context.lineWidth = 1;
+        for (let i = 0; i <= yTicks; ++i) {
+          const ratio = i / yTicks;
+          const y = margin.top + chartHeight - ratio * chartHeight;
+          context.beginPath();
+          context.moveTo(margin.left, y);
+          context.lineTo(margin.left + chartWidth, y);
+          context.stroke();
+        }
+
+        context.strokeStyle = '#94a3b8';
+        context.beginPath();
+        context.moveTo(margin.left, margin.top);
+        context.lineTo(margin.left, margin.top + chartHeight);
+        context.lineTo(margin.left + chartWidth, margin.top + chartHeight);
+        context.stroke();
+
+        const slotWidth = chartWidth / buckets.length;
+        const barWidth = Math.max(6, slotWidth * 0.6);
+        const barColor = '#2ca02c';
+        const labelDates = Array.from({ length: buckets.length }, (_, index) =>
+          new Date(dayStartEpoch + index * 3600000),
+        );
+
+        context.fillStyle = barColor;
+        buckets.forEach((bucket, index) => {
+          const average = averages[index];
+          const barHeight = chartHeight * (Math.min(average, yMax) / yMax);
+          const x = margin.left + index * slotWidth + (slotWidth - barWidth) / 2;
+          const y = margin.top + chartHeight - barHeight;
+          context.fillRect(x, y, barWidth, barHeight);
+        });
+
+        context.fillStyle = '#475569';
+        context.font = '12px sans-serif';
+        context.textAlign = 'right';
+        context.textBaseline = 'middle';
+        for (let i = 0; i <= yTicks; ++i) {
+          const ratio = i / yTicks;
+          const value = yMax * ratio;
+          const y = toY(value);
+          const label = value.toFixed(value >= 50 ? 0 : value >= 10 ? 1 : 2);
+          context.fillText(`${label} W`, margin.left - 8, y);
+        }
+
+        context.textAlign = 'center';
+        context.textBaseline = 'top';
+        labelDates.forEach((date, index) => {
+          const label = date.toLocaleTimeString([], { hour: '2-digit' });
+          const x = margin.left + index * slotWidth + slotWidth / 2;
+          const y = margin.top + chartHeight + 8;
+          if (index % 2 === 0) {
+            context.fillText(label, x, y);
+          }
+        });
+
+        context.textAlign = 'left';
+        context.textBaseline = 'middle';
+        context.fillStyle = barColor;
+        context.fillRect(margin.left, Math.max(18, margin.top - 26), 12, 12);
+        context.fillStyle = '#1f2937';
+        context.fillText(
+          'Average Watts per Hour',
+          margin.left + 16,
+          Math.max(18, margin.top - 20),
+        );
+
+        return summary;
+      }
+
+      function renderRecentDailyUsageChart(canvas, entries, meta, options = {}) {
+        const dayMs = 24 * 60 * 60 * 1000;
+        const days = Number(options.days) > 0 ? Math.floor(Number(options.days)) : 7;
+        const summary = {
+          type: 'daily-usage',
+          sampleCount: Array.isArray(entries) ? entries.length : 0,
+          bucketCount: days,
+          buckets: [],
+          coveredBuckets: 0,
+          totalWh: 0,
+          windowStartEpoch: null,
+          windowEndEpoch: null,
+          hasData: false,
+        };
+        if (!canvas) {
+          return summary;
+        }
+        const context = canvas.getContext('2d');
+        if (!context || days <= 0) {
+          return summary;
+        }
+
+        const latestEntry = Array.isArray(entries) && entries.length > 0 ? entries[entries.length - 1] : null;
+        let latestEpoch = latestEntry ? uptimeToEpochMs(latestEntry.t) : null;
+        if (!Number.isFinite(latestEpoch)) {
+          latestEpoch = estimateReferenceEpochMs();
+        }
+        const anchorDate = new Date(Number.isFinite(latestEpoch) ? latestEpoch : Date.now());
+        anchorDate.setHours(0, 0, 0, 0);
+        const windowEnd = anchorDate.getTime() + dayMs;
+        const windowStart = windowEnd - days * dayMs;
+        summary.windowStartEpoch = windowStart;
+        summary.windowEndEpoch = windowEnd;
+
+        const buckets = Array.from({ length: days }, (_, index) => {
+          const start = windowStart + index * dayMs;
+          return { start, end: start + dayMs, totalWh: 0, samples: 0 };
+        });
+
+        let previousWh = Number(meta?.rangeStartEnergyWh);
+        if (!Number.isFinite(previousWh)) {
+          previousWh = null;
+        }
+
+        if (Array.isArray(entries)) {
+          entries.forEach((entry) => {
+            const whValue = Number(entry?.wh);
+            const epoch = uptimeToEpochMs(entry?.t);
+            if (!Number.isFinite(whValue)) {
+              return;
+            }
+            if (!Number.isFinite(epoch)) {
+              previousWh = whValue;
+              return;
+            }
+            const sampleBucketIndex = Math.floor((epoch - windowStart) / dayMs);
+            if (sampleBucketIndex >= 0 && sampleBucketIndex < buckets.length) {
+              buckets[sampleBucketIndex].samples =
+                (buckets[sampleBucketIndex].samples || 0) + 1;
+            }
+            if (!Number.isFinite(previousWh)) {
+              previousWh = whValue;
+              return;
+            }
+            const delta = whValue - previousWh;
+            previousWh = whValue;
+            if (!Number.isFinite(delta) || delta <= 0) {
+              return;
+            }
+            if (sampleBucketIndex < 0 || sampleBucketIndex >= buckets.length) {
+              return;
+            }
+            buckets[sampleBucketIndex].totalWh += delta;
+          });
+        }
+
+        const values = buckets.map((bucket) => (Number.isFinite(bucket.totalWh) ? Math.max(0, bucket.totalWh) : 0));
+        summary.buckets = buckets;
+        summary.coveredBuckets = buckets.filter((bucket) => (bucket.samples || 0) > 0).length;
+        summary.totalWh = values.reduce((sum, value) => sum + value, 0);
+        summary.hasData = summary.coveredBuckets > 0;
+
+        renderUsageBarChart(context, buckets, {
+          title: options.title,
+          emptyMessage: 'No power samples for this period yet',
+          hasSamples: summary.coveredBuckets > 0,
+          labelFormatter: (bucket, index, count) => {
+            const date = new Date(bucket.start);
+            if (!summary.hasData) {
+              return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+            }
+            if (count > 14) {
+              const interval = Math.max(1, Math.ceil(count / 10));
+              if (index % interval !== 0 && index !== count - 1) {
+                return '';
+              }
+            }
+            return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+          },
+        });
+
+        return summary;
+      }
+
+      function renderRecentMonthlyUsageChart(canvas, entries, meta, options = {}) {
+        const months = Number(options.months) > 0 ? Math.floor(Number(options.months)) : 12;
+        const summary = {
+          type: 'monthly-usage',
+          sampleCount: Array.isArray(entries) ? entries.length : 0,
+          bucketCount: months,
+          buckets: [],
+          coveredBuckets: 0,
+          totalWh: 0,
+          windowStartEpoch: null,
+          windowEndEpoch: null,
+          hasData: false,
+        };
+        if (!canvas) {
+          return summary;
+        }
+        const context = canvas.getContext('2d');
+        if (!context || months <= 0) {
+          return summary;
+        }
+
+        const latestEntry = Array.isArray(entries) && entries.length > 0 ? entries[entries.length - 1] : null;
+        let latestEpoch = latestEntry ? uptimeToEpochMs(latestEntry.t) : null;
+        if (!Number.isFinite(latestEpoch)) {
+          latestEpoch = estimateReferenceEpochMs();
+        }
+        const anchorDate = new Date(Number.isFinite(latestEpoch) ? latestEpoch : Date.now());
+        const endMonth = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1);
+        const startMonth = new Date(endMonth.getFullYear(), endMonth.getMonth() - months, 1);
+        summary.windowStartEpoch = startMonth.getTime();
+        summary.windowEndEpoch = endMonth.getTime();
+
+        const buckets = Array.from({ length: months }, (_, index) => {
+          const startDate = new Date(startMonth.getFullYear(), startMonth.getMonth() + index, 1);
+          const endDate = new Date(startMonth.getFullYear(), startMonth.getMonth() + index + 1, 1);
+          return { start: startDate.getTime(), end: endDate.getTime(), totalWh: 0, samples: 0 };
+        });
+
+        let previousWh = Number(meta?.rangeStartEnergyWh);
+        if (!Number.isFinite(previousWh)) {
+          previousWh = null;
+        }
+
+        if (Array.isArray(entries)) {
+          entries.forEach((entry) => {
+            const whValue = Number(entry?.wh);
+            const epoch = uptimeToEpochMs(entry?.t);
+            if (!Number.isFinite(whValue)) {
+              return;
+            }
+            if (!Number.isFinite(epoch)) {
+              previousWh = whValue;
+              return;
+            }
+            const bucketIndex = buckets.findIndex(
+              (bucket) => epoch >= bucket.start && epoch < bucket.end,
+            );
+            if (bucketIndex === -1) {
+              previousWh = whValue;
+              return;
+            }
+            buckets[bucketIndex].samples = (buckets[bucketIndex].samples || 0) + 1;
+            if (!Number.isFinite(previousWh)) {
+              previousWh = whValue;
+              return;
+            }
+            const delta = whValue - previousWh;
+            previousWh = whValue;
+            if (!Number.isFinite(delta) || delta <= 0) {
+              return;
+            }
+            buckets[bucketIndex].totalWh += delta;
+          });
+        }
+
+        const values = buckets.map((bucket) => (Number.isFinite(bucket.totalWh) ? Math.max(0, bucket.totalWh) : 0));
+        summary.buckets = buckets;
+        summary.coveredBuckets = buckets.filter((bucket) => (bucket.samples || 0) > 0).length;
+        summary.totalWh = values.reduce((sum, value) => sum + value, 0);
+        summary.hasData = summary.coveredBuckets > 0;
+
+        renderUsageBarChart(context, buckets, {
+          title: options.title,
+          emptyMessage: 'No power samples for this period yet',
+          hasSamples: summary.coveredBuckets > 0,
+          labelFormatter: (bucket, index) => {
+            const date = new Date(bucket.start);
+            const formatOptions =
+              index === 0 || date.getMonth() === 0
+                ? { month: 'short', year: 'numeric' }
+                : { month: 'short' };
+            return date.toLocaleDateString(undefined, formatOptions);
+          },
+        });
+
+        return summary;
+      }
+
+      function renderUsageBarChart(context, buckets, options = {}) {
+        const canvas = context.canvas;
+        const width = canvas.width;
+        const height = canvas.height;
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+
+        const drawEmptyState = (message) => {
+          context.fillStyle = '#6b7280';
+          context.font = '14px sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(message, width / 2, height / 2);
+        };
+
+        if (!Array.isArray(buckets) || buckets.length === 0) {
+          drawEmptyState(options.emptyMessage || 'No data available');
+          return;
+        }
+
+        const values = buckets.map((bucket) => (Number.isFinite(bucket.totalWh) ? Math.max(0, bucket.totalWh) : 0));
+        const hasUsage = values.some((value) => value > 0);
+        const hasSamples = Boolean(options.hasSamples);
+        if (!hasUsage && !hasSamples) {
+          drawEmptyState(options.emptyMessage || 'No data available');
+          return;
+        }
+
+        const maxValue = Math.max(...values);
+        const yMax = maxValue > 0 ? maxValue * 1.1 : 10;
+        const margin = { left: 72, right: 18, top: 48, bottom: 64 };
+        const chartWidth = Math.max(1, width - margin.left - margin.right);
+        const chartHeight = Math.max(1, height - margin.top - margin.bottom);
+        const slotWidth = chartWidth / buckets.length;
+        const barWidth = Math.max(6, slotWidth * 0.6);
+        const useKilowattHours = yMax >= 1000;
+        const scale = useKilowattHours ? 1 / 1000 : 1;
+        const unitLabel = useKilowattHours ? 'kWh' : 'Wh';
+        const yTicks = 5;
+
+        const toY = (value) =>
+          margin.top + chartHeight - Math.min(1, Math.max(0, value / yMax)) * chartHeight;
+
+        context.strokeStyle = '#e2e8f0';
+        context.lineWidth = 1;
+        for (let i = 0; i <= yTicks; ++i) {
+          const ratio = i / yTicks;
+          const y = margin.top + chartHeight - ratio * chartHeight;
+          context.beginPath();
+          context.moveTo(margin.left, y);
+          context.lineTo(margin.left + chartWidth, y);
+          context.stroke();
+        }
+
+        context.strokeStyle = '#94a3b8';
+        context.beginPath();
+        context.moveTo(margin.left, margin.top);
+        context.lineTo(margin.left, margin.top + chartHeight);
+        context.lineTo(margin.left + chartWidth, margin.top + chartHeight);
+        context.stroke();
+
+        context.fillStyle = '#2563eb';
+        buckets.forEach((bucket, index) => {
+          const value = values[index];
+          const barHeight = chartHeight * (Math.min(value, yMax) / yMax);
+          const x = margin.left + index * slotWidth + (slotWidth - barWidth) / 2;
+          const y = margin.top + chartHeight - barHeight;
+          context.fillRect(x, y, barWidth, barHeight);
+        });
+
+        context.fillStyle = '#475569';
+        context.font = '12px sans-serif';
+        context.textAlign = 'right';
+        context.textBaseline = 'middle';
+        for (let i = 0; i <= yTicks; ++i) {
+          const ratio = i / yTicks;
+          const value = yMax * ratio;
+          const y = toY(value);
+          const labelValue = value * scale;
+          const label = labelValue >= 10 ? labelValue.toFixed(0) : labelValue.toFixed(1);
+          context.fillText(`${label} ${unitLabel}`, margin.left - 8, y);
+        }
+
+        const labelFormatter = typeof options.labelFormatter === 'function'
+          ? options.labelFormatter
+          : () => '';
+        const labelInterval = Math.max(1, Math.ceil(buckets.length / 10));
+        context.textAlign = 'center';
+        context.textBaseline = 'top';
+        buckets.forEach((bucket, index) => {
+          const label = labelFormatter(bucket, index, buckets.length);
+          if (!label) {
+            return;
+          }
+          if (buckets.length > 12 && index % labelInterval !== 0 && index !== buckets.length - 1) {
+            return;
+          }
+          const x = margin.left + index * slotWidth + slotWidth / 2;
+          const y = margin.top + chartHeight + 8;
+          context.fillText(label, x, y);
+        });
+
+        if (options.title) {
+          context.textAlign = 'left';
+          context.textBaseline = 'middle';
+          context.fillStyle = '#2563eb';
+          context.fillRect(margin.left, Math.max(18, margin.top - 26), 12, 12);
+          context.fillStyle = '#1f2937';
+          context.fillText(options.title, margin.left + 16, Math.max(18, margin.top - 20));
+        }
       }
 
       function setActivePowerRange(range) {
@@ -805,7 +1450,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         if (!Number.isFinite(numeric)) {
           return '';
         }
-        const date = new Date(numeric);
+        const epochValue = uptimeToEpochMs(numeric);
+        const date = new Date(Number.isFinite(epochValue) ? epochValue : numeric);
         const month = date.toLocaleDateString(undefined, { month: 'short' });
         const day = String(date.getDate()).padStart(2, '0');
         const hours = String(date.getHours()).padStart(2, '0');
@@ -836,17 +1482,98 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         return `${value} minute${Number(value) === 1 ? '' : 's'}`;
       }
 
+      function estimateCurrentUptimeMs() {
+        if (!Number.isFinite(currentTimeState.uptimeMs)) {
+          return null;
+        }
+        if (!Number.isFinite(currentTimeState.uptimeReceivedAtMs)) {
+          return currentTimeState.uptimeMs;
+        }
+        const elapsed = Date.now() - currentTimeState.uptimeReceivedAtMs;
+        if (!Number.isFinite(elapsed) || elapsed < 0) {
+          return currentTimeState.uptimeMs;
+        }
+        return currentTimeState.uptimeMs + elapsed;
+      }
+
+      function uptimeToEpochMs(uptimeMs) {
+        const numeric = Number(uptimeMs);
+        if (!Number.isFinite(numeric)) {
+          return null;
+        }
+        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
+          return numeric + currentTimeState.clockOffsetMs;
+        }
+        if (Number.isFinite(currentTimeState.epochSeconds)) {
+          const baseEpoch = currentTimeState.epochSeconds * 1000;
+          const receivedAt = Number.isFinite(currentTimeState.receivedAtMs)
+            ? currentTimeState.receivedAtMs
+            : null;
+          const elapsedSince = receivedAt !== null ? Date.now() - receivedAt : 0;
+          const estimatedCurrentEpoch = baseEpoch + (Number.isFinite(elapsedSince) ? elapsedSince : 0);
+          const estimatedUptime = estimateCurrentUptimeMs();
+          if (Number.isFinite(estimatedUptime)) {
+            const delta = numeric - estimatedUptime;
+            return estimatedCurrentEpoch + delta;
+          }
+          return numeric;
+        }
+        return numeric;
+      }
+
+      function estimateReferenceEpochMs(latestUptimeMs = null) {
+        const latestNumeric = Number(latestUptimeMs);
+        const hasLatest = Number.isFinite(latestNumeric);
+        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
+          if (hasLatest) {
+            return latestNumeric + currentTimeState.clockOffsetMs;
+          }
+          const estimatedUptime = estimateCurrentUptimeMs();
+          if (Number.isFinite(estimatedUptime)) {
+            return estimatedUptime + currentTimeState.clockOffsetMs;
+          }
+        }
+        if (Number.isFinite(currentTimeState.epochSeconds)) {
+          const baseEpoch = currentTimeState.epochSeconds * 1000;
+          const receivedAt = Number.isFinite(currentTimeState.receivedAtMs)
+            ? currentTimeState.receivedAtMs
+            : null;
+          const elapsedSince = receivedAt !== null ? Date.now() - receivedAt : 0;
+          return baseEpoch + (Number.isFinite(elapsedSince) ? elapsedSince : 0);
+        }
+        if (hasLatest) {
+          return latestNumeric;
+        }
+        const estimatedUptimeFallback = estimateCurrentUptimeMs();
+        if (Number.isFinite(estimatedUptimeFallback)) {
+          return estimatedUptimeFallback;
+        }
+        return Date.now();
+      }
+
+      function epochToUptimeMs(epochMs) {
+        const numeric = Number(epochMs);
+        if (!Number.isFinite(numeric)) {
+          return null;
+        }
+        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
+          return numeric - currentTimeState.clockOffsetMs;
+        }
+        const estimatedEpoch = estimateReferenceEpochMs();
+        const estimatedUptime = estimateCurrentUptimeMs();
+        if (Number.isFinite(estimatedEpoch) && Number.isFinite(estimatedUptime)) {
+          const delta = numeric - estimatedEpoch;
+          return estimatedUptime + delta;
+        }
+        return numeric;
+      }
+
       function updatePowerRangeAvailability(meta) {
         const availableCount = Number(meta?.availableCount) || 0;
-        const availableSpanMs = Number(meta?.availableSpanMs);
         let fallbackRange = null;
         powerRangeButtons.forEach((button) => {
           const range = button.dataset.powerRange;
-          const duration = powerRangeDurations[range] || powerRangeDurations.week;
-          let enabled = availableCount >= 2;
-          if (range !== 'day' && range !== 'week') {
-            enabled = enabled && Number.isFinite(availableSpanMs) && availableSpanMs >= duration;
-          }
+          const enabled = availableCount >= 1;
           button.disabled = !enabled;
           if (enabled && fallbackRange === null) {
             fallbackRange = range;
@@ -865,7 +1592,13 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
       function applyPowerHistoryResponse(data) {
         const entries = Array.isArray(data?.entries) ? data.entries : [];
-        renderPowerChart(document.getElementById('powerChart'), entries);
+        renderCurrentPowerChart(currentPowerChart, entries);
+
+        const chartSummary = renderPowerChart(
+          document.getElementById('powerChart'),
+          entries,
+          data,
+        );
 
         const baselineWh = Number(data?.rangeStartEnergyWh);
         const endWh = Number(data?.rangeEndEnergyWh);
@@ -894,30 +1627,121 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           return;
         }
 
-        if (filteredCount < 2) {
-          powerRangeMessage.textContent =
-            'Collecting power history… need at least two samples to chart this range.';
-          return;
-        }
-
-        const rangeDuration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
-        const coverageMs = Number.isFinite(filteredSpanMs) ? filteredSpanMs : 0;
-        if (entries.length === 0) {
+        if (filteredCount === 0 || entries.length === 0 || (chartSummary && chartSummary.hasData === false)) {
           powerRangeMessage.textContent = 'No power history available yet.';
           return;
         }
 
-        const coverageAdequate = Number.isFinite(rangeDuration)
-          ? coverageMs + 60000 >= rangeDuration
-          : true;
-        if (!coverageAdequate) {
-          const remainingMs = Math.max(0, rangeDuration - coverageMs);
-          const neededDays = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
-          const coverageLabel = describeDuration(coverageMs);
-          const suffix = neededDays > 0 ? `${neededDays} more day${neededDays === 1 ? '' : 's'}` : 'more time';
-          powerRangeMessage.textContent = `Only ${coverageLabel} of history so far – ${suffix} needed for a full ${selectedPowerRange}.`;
+        if (selectedPowerRange === 'day') {
+          let earliestUptime = null;
+          entries.forEach((entry) => {
+            const value = Number(entry?.t);
+            if (!Number.isFinite(value)) {
+              return;
+            }
+            if (earliestUptime === null || value < earliestUptime) {
+              earliestUptime = value;
+            }
+          });
+          const sampleLabel = filteredCount === 1 ? 'sample' : 'samples';
+          const hasRealtimeClock =
+            Number.isFinite(currentTimeState.clockOffsetMs) ||
+            (Number.isFinite(currentTimeState.epochSeconds) &&
+              Number.isFinite(currentTimeState.uptimeMs));
+          if (earliestUptime !== null) {
+            const epochValue = uptimeToEpochMs(earliestUptime);
+            if (hasRealtimeClock && Number.isFinite(epochValue)) {
+              const formattedDate = new Date(epochValue).toLocaleDateString(undefined, {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric',
+              });
+              powerRangeMessage.textContent = `Showing hourly averages for ${formattedDate} (${filteredCount} ${sampleLabel}).`;
+              return;
+            }
+          }
+          if (hasRealtimeClock) {
+            const fallbackEpoch = estimateReferenceEpochMs(earliestUptime);
+            if (Number.isFinite(fallbackEpoch)) {
+              const formattedDate = new Date(fallbackEpoch).toLocaleDateString(undefined, {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric',
+              });
+              powerRangeMessage.textContent = `Showing hourly averages for ${formattedDate} (${filteredCount} ${sampleLabel}).`;
+              return;
+            }
+          }
+          powerRangeMessage.textContent = `Showing hourly averages from the latest 24 hours (${filteredCount} ${sampleLabel}).`;
           return;
         }
+
+        if (selectedPowerRange === 'week' || selectedPowerRange === 'month') {
+          const totalDays = selectedPowerRange === 'week' ? 7 : 30;
+          const covered = chartSummary?.coveredBuckets ?? 0;
+          const windowStart = chartSummary?.windowStartEpoch;
+          const windowEnd = chartSummary?.windowEndEpoch;
+          const totalEnergyText = Number.isFinite(chartSummary?.totalWh)
+            ? formatEnergyWh(chartSummary.totalWh)
+            : null;
+          let detail = '';
+          if (Number.isFinite(windowStart) && Number.isFinite(windowEnd)) {
+            const startLabel = new Date(windowStart).toLocaleDateString(undefined, {
+              month: 'short',
+              day: '2-digit',
+            });
+            const endLabel = new Date(windowEnd - 1).toLocaleDateString(undefined, {
+              month: 'short',
+              day: '2-digit',
+            });
+            detail = `${startLabel} – ${endLabel}`;
+          }
+          let message = `Showing daily energy totals for the last ${totalDays} days`;
+          if (detail) {
+            message += ` (${detail})`;
+          }
+          message += '.';
+          message += ` ${covered} of ${totalDays} day${totalDays === 1 ? '' : 's'} include samples.`;
+          if (totalEnergyText) {
+            message += ` Total: ${totalEnergyText}.`;
+          }
+          powerRangeMessage.textContent = message;
+          return;
+        }
+
+        if (selectedPowerRange === 'year') {
+          const covered = chartSummary?.coveredBuckets ?? 0;
+          const windowStart = chartSummary?.windowStartEpoch;
+          const windowEnd = chartSummary?.windowEndEpoch;
+          const totalEnergyText = Number.isFinite(chartSummary?.totalWh)
+            ? formatEnergyWh(chartSummary.totalWh)
+            : null;
+          let detail = '';
+          if (Number.isFinite(windowStart) && Number.isFinite(windowEnd)) {
+            const startLabel = new Date(windowStart).toLocaleDateString(undefined, {
+              month: 'short',
+              year: 'numeric',
+            });
+            const endLabel = new Date(windowEnd - 1).toLocaleDateString(undefined, {
+              month: 'short',
+              year: 'numeric',
+            });
+            detail = `${startLabel} – ${endLabel}`;
+          }
+          let message = 'Showing monthly energy totals for the last 12 months';
+          if (detail) {
+            message += ` (${detail})`;
+          }
+          message += '.';
+          message += ` ${covered} of 12 months include samples.`;
+          if (totalEnergyText) {
+            message += ` Total: ${totalEnergyText}.`;
+          }
+          powerRangeMessage.textContent = message;
+          return;
+        }
+
+        const coverageMs = Number.isFinite(filteredSpanMs) ? filteredSpanMs : 0;
 
         const startText = formatShortDate(entries[0].t);
         const endText = formatShortDate(entries[entries.length - 1].t);
@@ -952,21 +1776,44 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         lastPowerHistoryRefresh = now;
 
         const requestPromise = (async () => {
-          let referenceMs = Date.now();
-          if (
-            currentTimeState.epochSeconds !== null &&
-            currentTimeState.receivedAtMs !== null
-          ) {
-            referenceMs =
-              currentTimeState.epochSeconds * 1000 + (Date.now() - currentTimeState.receivedAtMs);
-          } else if (currentTimeState.epochSeconds !== null) {
-            referenceMs = currentTimeState.epochSeconds * 1000;
-          }
           const duration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
-          const startMs = Math.max(0, Math.floor(referenceMs - duration));
           const params = new URLSearchParams();
-          if (Number.isFinite(startMs)) {
-            params.set('start', String(startMs));
+          const estimatedUptime = estimateCurrentUptimeMs();
+          const canMapEpochToUptime =
+            Number.isFinite(currentTimeState.clockOffsetMs) ||
+            (Number.isFinite(currentTimeState.epochSeconds) &&
+              Number.isFinite(currentTimeState.uptimeMs));
+
+          if (selectedPowerRange === 'day') {
+            let dayStartUptime = null;
+            let dayEndUptime = null;
+            if (canMapEpochToUptime) {
+              const referenceEpoch = estimateReferenceEpochMs(estimatedUptime);
+              if (Number.isFinite(referenceEpoch)) {
+                const dayStart = new Date(referenceEpoch);
+                dayStart.setHours(0, 0, 0, 0);
+                const dayStartEpoch = dayStart.getTime();
+                const dayEndEpoch = dayStartEpoch + 24 * 60 * 60 * 1000 - 1;
+                dayStartUptime = epochToUptimeMs(dayStartEpoch);
+                dayEndUptime = epochToUptimeMs(dayEndEpoch);
+              }
+            }
+            if (!Number.isFinite(dayStartUptime) && Number.isFinite(estimatedUptime)) {
+              dayStartUptime = Math.max(0, estimatedUptime - 24 * 60 * 60 * 1000);
+            }
+            if (Number.isFinite(dayStartUptime)) {
+              params.set('start', String(Math.max(0, Math.floor(dayStartUptime))));
+            }
+            if (
+              Number.isFinite(dayEndUptime) &&
+              Number.isFinite(dayStartUptime) &&
+              dayEndUptime >= dayStartUptime
+            ) {
+              params.set('end', String(Math.floor(dayEndUptime)));
+            }
+          } else if (Number.isFinite(estimatedUptime) && Number.isFinite(duration)) {
+            const startCandidate = Math.max(0, estimatedUptime - duration);
+            params.set('start', String(Math.floor(startCandidate)));
           }
           const url = params.toString().length > 0 ? `/api/power-log?${params}` : '/api/power-log';
           if (powerRangeMessage) {
@@ -998,6 +1845,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           }
           powerSummaryTotal.textContent = '-';
           powerSummaryAverage.textContent = '-';
+          renderCurrentPowerChart(currentPowerChart, []);
           renderPowerChart(document.getElementById('powerChart'), []);
         } finally {
           powerHistoryRequest = null;
@@ -1116,13 +1964,31 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         const epochValue = Number(data.currentTimeEpoch);
         const timeString =
           typeof data.currentTime === 'string' ? data.currentTime.trim() : '';
+        const uptimeSecondsValue = Number(data.uptimeSeconds);
+        const uptimeMs =
+          Number.isFinite(uptimeSecondsValue) && uptimeSecondsValue >= 0
+            ? uptimeSecondsValue * 1000
+            : null;
+        const now = Date.now();
+        const epochSeconds = Number.isFinite(epochValue) && epochValue > 0 ? epochValue : null;
+        const clockOffsetCandidate =
+          epochSeconds !== null && Number.isFinite(uptimeMs)
+            ? epochSeconds * 1000 - uptimeMs
+            : null;
         currentTimeState = {
-          epochSeconds: Number.isFinite(epochValue) && epochValue > 0 ? epochValue : null,
-          receivedAtMs: Date.now(),
+          epochSeconds,
+          receivedAtMs: epochSeconds !== null ? now : null,
           formatted: timeString !== '' ? timeString : null,
+          uptimeMs: Number.isFinite(uptimeMs) ? uptimeMs : null,
+          uptimeReceivedAtMs: Number.isFinite(uptimeMs) ? now : null,
+          clockOffsetMs: Number.isFinite(clockOffsetCandidate) ? clockOffsetCandidate : null,
         };
         if (currentTimeState.formatted === null && currentTimeState.epochSeconds === null) {
           currentTimeState.receivedAtMs = null;
+        }
+        if (!Number.isFinite(currentTimeState.uptimeMs)) {
+          currentTimeState.uptimeMs = null;
+          currentTimeState.uptimeReceivedAtMs = null;
         }
         renderCurrentTime();
 
@@ -1310,6 +2176,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             }
             powerSummaryTotal.textContent = '-';
             powerSummaryAverage.textContent = '-';
+            renderCurrentPowerChart(currentPowerChart, []);
             renderPowerChart(document.getElementById('powerChart'), []);
             lastPowerHistoryRefresh = 0;
             await refreshPowerHistory(true);
@@ -1326,6 +2193,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           }
         });
       }
+
+      renderCurrentPowerChart(currentPowerChart, []);
 
       (async () => {
         try {
