@@ -432,6 +432,9 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         epochSeconds: null,
         receivedAtMs: null,
         formatted: null,
+        uptimeMs: null,
+        uptimeReceivedAtMs: null,
+        clockOffsetMs: null,
       };
       const powerRangeButtons = Array.from(
         document.querySelectorAll('.range-button[data-power-range]'),
@@ -801,20 +804,24 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           context.fillText(message, width / 2, height / 2);
         };
 
-        let referenceMs = Date.now();
-        if (currentTimeState.epochSeconds !== null && currentTimeState.receivedAtMs !== null) {
-          referenceMs =
-            currentTimeState.epochSeconds * 1000 + (Date.now() - currentTimeState.receivedAtMs);
-        } else if (currentTimeState.epochSeconds !== null) {
-          referenceMs = currentTimeState.epochSeconds * 1000;
-        } else if (Array.isArray(entries) && entries.length > 0) {
-          referenceMs = Number(entries[entries.length - 1].t) || referenceMs;
+        let latestSampleUptime = null;
+        if (Array.isArray(entries)) {
+          entries.forEach((entry) => {
+            const time = Number(entry.t);
+            if (!Number.isFinite(time)) {
+              return;
+            }
+            if (!Number.isFinite(latestSampleUptime) || time > latestSampleUptime) {
+              latestSampleUptime = time;
+            }
+          });
         }
 
-        const referenceDate = new Date(referenceMs);
+        const referenceEpochMs = estimateReferenceEpochMs(latestSampleUptime);
+        const referenceDate = new Date(referenceEpochMs);
         referenceDate.setHours(0, 0, 0, 0);
-        const dayStartMs = referenceDate.getTime();
-        const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
+        const dayStartEpoch = referenceDate.getTime();
+        const dayEndEpoch = dayStartEpoch + 24 * 60 * 60 * 1000;
 
         const buckets = Array.from({ length: 24 }, () => ({ sum: 0, count: 0 }));
         if (Array.isArray(entries)) {
@@ -827,10 +834,14 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             if (!Number.isFinite(time) || !Number.isFinite(wattsValue)) {
               return;
             }
-            if (time < dayStartMs || time >= dayEndMs) {
+            const epochMs = uptimeToEpochMs(time);
+            if (!Number.isFinite(epochMs)) {
               return;
             }
-            const hourIndex = Math.floor((time - dayStartMs) / 3600000);
+            if (epochMs < dayStartEpoch || epochMs >= dayEndEpoch) {
+              return;
+            }
+            const hourIndex = Math.floor((epochMs - dayStartEpoch) / 3600000);
             if (hourIndex < 0 || hourIndex >= buckets.length) {
               return;
             }
@@ -880,7 +891,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         const barWidth = Math.max(6, slotWidth * 0.6);
         const barColor = '#2ca02c';
         const labelDates = Array.from({ length: buckets.length }, (_, index) =>
-          new Date(dayStartMs + index * 3600000),
+          new Date(dayStartEpoch + index * 3600000),
         );
 
         context.fillStyle = barColor;
@@ -959,7 +970,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         if (!Number.isFinite(numeric)) {
           return '';
         }
-        const date = new Date(numeric);
+        const epochValue = uptimeToEpochMs(numeric);
+        const date = new Date(Number.isFinite(epochValue) ? epochValue : numeric);
         const month = date.toLocaleDateString(undefined, { month: 'short' });
         const day = String(date.getDate()).padStart(2, '0');
         const hours = String(date.getHours()).padStart(2, '0');
@@ -988,6 +1000,92 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         const decimals = minutes >= 10 ? 0 : 1;
         const value = minutes.toFixed(decimals);
         return `${value} minute${Number(value) === 1 ? '' : 's'}`;
+      }
+
+      function estimateCurrentUptimeMs() {
+        if (!Number.isFinite(currentTimeState.uptimeMs)) {
+          return null;
+        }
+        if (!Number.isFinite(currentTimeState.uptimeReceivedAtMs)) {
+          return currentTimeState.uptimeMs;
+        }
+        const elapsed = Date.now() - currentTimeState.uptimeReceivedAtMs;
+        if (!Number.isFinite(elapsed) || elapsed < 0) {
+          return currentTimeState.uptimeMs;
+        }
+        return currentTimeState.uptimeMs + elapsed;
+      }
+
+      function uptimeToEpochMs(uptimeMs) {
+        const numeric = Number(uptimeMs);
+        if (!Number.isFinite(numeric)) {
+          return null;
+        }
+        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
+          return numeric + currentTimeState.clockOffsetMs;
+        }
+        if (Number.isFinite(currentTimeState.epochSeconds)) {
+          const baseEpoch = currentTimeState.epochSeconds * 1000;
+          const receivedAt = Number.isFinite(currentTimeState.receivedAtMs)
+            ? currentTimeState.receivedAtMs
+            : null;
+          const elapsedSince = receivedAt !== null ? Date.now() - receivedAt : 0;
+          const estimatedCurrentEpoch = baseEpoch + (Number.isFinite(elapsedSince) ? elapsedSince : 0);
+          const estimatedUptime = estimateCurrentUptimeMs();
+          if (Number.isFinite(estimatedUptime)) {
+            const delta = numeric - estimatedUptime;
+            return estimatedCurrentEpoch + delta;
+          }
+          return numeric;
+        }
+        return numeric;
+      }
+
+      function estimateReferenceEpochMs(latestUptimeMs = null) {
+        const latestNumeric = Number(latestUptimeMs);
+        const hasLatest = Number.isFinite(latestNumeric);
+        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
+          if (hasLatest) {
+            return latestNumeric + currentTimeState.clockOffsetMs;
+          }
+          const estimatedUptime = estimateCurrentUptimeMs();
+          if (Number.isFinite(estimatedUptime)) {
+            return estimatedUptime + currentTimeState.clockOffsetMs;
+          }
+        }
+        if (Number.isFinite(currentTimeState.epochSeconds)) {
+          const baseEpoch = currentTimeState.epochSeconds * 1000;
+          const receivedAt = Number.isFinite(currentTimeState.receivedAtMs)
+            ? currentTimeState.receivedAtMs
+            : null;
+          const elapsedSince = receivedAt !== null ? Date.now() - receivedAt : 0;
+          return baseEpoch + (Number.isFinite(elapsedSince) ? elapsedSince : 0);
+        }
+        if (hasLatest) {
+          return latestNumeric;
+        }
+        const estimatedUptimeFallback = estimateCurrentUptimeMs();
+        if (Number.isFinite(estimatedUptimeFallback)) {
+          return estimatedUptimeFallback;
+        }
+        return Date.now();
+      }
+
+      function epochToUptimeMs(epochMs) {
+        const numeric = Number(epochMs);
+        if (!Number.isFinite(numeric)) {
+          return null;
+        }
+        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
+          return numeric - currentTimeState.clockOffsetMs;
+        }
+        const estimatedEpoch = estimateReferenceEpochMs();
+        const estimatedUptime = estimateCurrentUptimeMs();
+        if (Number.isFinite(estimatedEpoch) && Number.isFinite(estimatedUptime)) {
+          const delta = numeric - estimatedEpoch;
+          return estimatedUptime + delta;
+        }
+        return numeric;
       }
 
       function updatePowerRangeAvailability(meta) {
@@ -1072,24 +1170,46 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         }
 
         if (selectedPowerRange === 'day') {
-          let firstTimestamp = null;
+          let earliestUptime = null;
           entries.forEach((entry) => {
             const value = Number(entry?.t);
             if (!Number.isFinite(value)) {
               return;
             }
-            if (firstTimestamp === null || value < firstTimestamp) {
-              firstTimestamp = value;
+            if (earliestUptime === null || value < earliestUptime) {
+              earliestUptime = value;
             }
           });
-          const date = firstTimestamp !== null ? new Date(firstTimestamp) : new Date();
-          const formattedDate = date.toLocaleDateString(undefined, {
-            month: 'short',
-            day: '2-digit',
-            year: 'numeric',
-          });
           const sampleLabel = filteredCount === 1 ? 'sample' : 'samples';
-          powerRangeMessage.textContent = `Showing hourly averages for ${formattedDate} (${filteredCount} ${sampleLabel}).`;
+          const hasRealtimeClock =
+            Number.isFinite(currentTimeState.clockOffsetMs) ||
+            (Number.isFinite(currentTimeState.epochSeconds) &&
+              Number.isFinite(currentTimeState.uptimeMs));
+          if (earliestUptime !== null) {
+            const epochValue = uptimeToEpochMs(earliestUptime);
+            if (hasRealtimeClock && Number.isFinite(epochValue)) {
+              const formattedDate = new Date(epochValue).toLocaleDateString(undefined, {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric',
+              });
+              powerRangeMessage.textContent = `Showing hourly averages for ${formattedDate} (${filteredCount} ${sampleLabel}).`;
+              return;
+            }
+          }
+          if (hasRealtimeClock) {
+            const fallbackEpoch = estimateReferenceEpochMs(earliestUptime);
+            if (Number.isFinite(fallbackEpoch)) {
+              const formattedDate = new Date(fallbackEpoch).toLocaleDateString(undefined, {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric',
+              });
+              powerRangeMessage.textContent = `Showing hourly averages for ${formattedDate} (${filteredCount} ${sampleLabel}).`;
+              return;
+            }
+          }
+          powerRangeMessage.textContent = `Showing hourly averages from the latest 24 hours (${filteredCount} ${sampleLabel}).`;
           return;
         }
 
@@ -1126,30 +1246,44 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         lastPowerHistoryRefresh = now;
 
         const requestPromise = (async () => {
-          let referenceMs = Date.now();
-          if (
-            currentTimeState.epochSeconds !== null &&
-            currentTimeState.receivedAtMs !== null
-          ) {
-            referenceMs =
-              currentTimeState.epochSeconds * 1000 + (Date.now() - currentTimeState.receivedAtMs);
-          } else if (currentTimeState.epochSeconds !== null) {
-            referenceMs = currentTimeState.epochSeconds * 1000;
-          }
           const duration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
-          let startMs = Math.max(0, Math.floor(referenceMs - duration));
           const params = new URLSearchParams();
+          const estimatedUptime = estimateCurrentUptimeMs();
+          const canMapEpochToUptime =
+            Number.isFinite(currentTimeState.clockOffsetMs) ||
+            (Number.isFinite(currentTimeState.epochSeconds) &&
+              Number.isFinite(currentTimeState.uptimeMs));
+
           if (selectedPowerRange === 'day') {
-            const dayStart = new Date(referenceMs);
-            dayStart.setHours(0, 0, 0, 0);
-            startMs = dayStart.getTime();
-            const dayEnd = dayStart.getTime() + 24 * 60 * 60 * 1000 - 1;
-            if (Number.isFinite(dayEnd)) {
-              params.set('end', String(dayEnd));
+            let dayStartUptime = null;
+            let dayEndUptime = null;
+            if (canMapEpochToUptime) {
+              const referenceEpoch = estimateReferenceEpochMs(estimatedUptime);
+              if (Number.isFinite(referenceEpoch)) {
+                const dayStart = new Date(referenceEpoch);
+                dayStart.setHours(0, 0, 0, 0);
+                const dayStartEpoch = dayStart.getTime();
+                const dayEndEpoch = dayStartEpoch + 24 * 60 * 60 * 1000 - 1;
+                dayStartUptime = epochToUptimeMs(dayStartEpoch);
+                dayEndUptime = epochToUptimeMs(dayEndEpoch);
+              }
             }
-          }
-          if (Number.isFinite(startMs)) {
-            params.set('start', String(startMs));
+            if (!Number.isFinite(dayStartUptime) && Number.isFinite(estimatedUptime)) {
+              dayStartUptime = Math.max(0, estimatedUptime - 24 * 60 * 60 * 1000);
+            }
+            if (Number.isFinite(dayStartUptime)) {
+              params.set('start', String(Math.max(0, Math.floor(dayStartUptime))));
+            }
+            if (
+              Number.isFinite(dayEndUptime) &&
+              Number.isFinite(dayStartUptime) &&
+              dayEndUptime >= dayStartUptime
+            ) {
+              params.set('end', String(Math.floor(dayEndUptime)));
+            }
+          } else if (Number.isFinite(estimatedUptime) && Number.isFinite(duration)) {
+            const startCandidate = Math.max(0, estimatedUptime - duration);
+            params.set('start', String(Math.floor(startCandidate)));
           }
           const url = params.toString().length > 0 ? `/api/power-log?${params}` : '/api/power-log';
           if (powerRangeMessage) {
@@ -1299,13 +1433,31 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         const epochValue = Number(data.currentTimeEpoch);
         const timeString =
           typeof data.currentTime === 'string' ? data.currentTime.trim() : '';
+        const uptimeSecondsValue = Number(data.uptimeSeconds);
+        const uptimeMs =
+          Number.isFinite(uptimeSecondsValue) && uptimeSecondsValue >= 0
+            ? uptimeSecondsValue * 1000
+            : null;
+        const now = Date.now();
+        const epochSeconds = Number.isFinite(epochValue) && epochValue > 0 ? epochValue : null;
+        const clockOffsetCandidate =
+          epochSeconds !== null && Number.isFinite(uptimeMs)
+            ? epochSeconds * 1000 - uptimeMs
+            : null;
         currentTimeState = {
-          epochSeconds: Number.isFinite(epochValue) && epochValue > 0 ? epochValue : null,
-          receivedAtMs: Date.now(),
+          epochSeconds,
+          receivedAtMs: epochSeconds !== null ? now : null,
           formatted: timeString !== '' ? timeString : null,
+          uptimeMs: Number.isFinite(uptimeMs) ? uptimeMs : null,
+          uptimeReceivedAtMs: Number.isFinite(uptimeMs) ? now : null,
+          clockOffsetMs: Number.isFinite(clockOffsetCandidate) ? clockOffsetCandidate : null,
         };
         if (currentTimeState.formatted === null && currentTimeState.epochSeconds === null) {
           currentTimeState.receivedAtMs = null;
+        }
+        if (!Number.isFinite(currentTimeState.uptimeMs)) {
+          currentTimeState.uptimeMs = null;
+          currentTimeState.uptimeReceivedAtMs = null;
         }
         renderCurrentTime();
 
