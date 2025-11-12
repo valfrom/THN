@@ -1,6 +1,7 @@
 #include "WebInterface.h"
 #include "WebInterfaceHtml.h"
 
+#include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +46,7 @@ void WebInterface::handleState() {
   String json = "{";
   json += "\"ssid\":\"" + WiFi.SSID() + "\"";
   json += ",\"ip\":\"" + WiFi.localIP().toString() + "\"";
+  json += ",\"uptimeSeconds\":" + String(static_cast<unsigned long>(millis() / 1000UL));
   json += ",\"target\":" + String(controller_.targetTemperature(), 2);
   json += ",\"hysteresis\":" + String(controller_.hysteresis(), 2);
   json += ",\"compressorTempLimit\":" + String(controller_.compressorTemperatureLimit(), 1);

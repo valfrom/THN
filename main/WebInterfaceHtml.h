@@ -202,6 +202,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       <h1>HVAC Controller</h1>
       <div class="header-meta">
         <div id="wifiInfo"></div>
+        <div>Uptime: <span id="uptime">-</span></div>
         <div id="currentTime">-</div>
       </div>
     </header>
@@ -1044,6 +1045,32 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         return `${minutes} ${minuteLabel} ${seconds} ${secondLabel}`;
       }
 
+      function formatUptimeSeconds(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric < 0) {
+          return '-';
+        }
+        const totalSeconds = Math.floor(numeric);
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        const parts = [];
+        if (days > 0) {
+          parts.push(`${days}d`);
+        }
+        if (hours > 0 || parts.length > 0) {
+          parts.push(`${hours}h`);
+        }
+        if (minutes > 0 || parts.length > 0) {
+          parts.push(`${minutes}m`);
+        }
+        if (parts.length === 0 || seconds > 0) {
+          parts.push(`${seconds}s`);
+        }
+        return parts.join(' ');
+      }
+
       function renderCurrentTime() {
         const currentTimeElement = document.getElementById('currentTime');
         if (!currentTimeElement) {
@@ -1110,6 +1137,10 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         document.getElementById('ambient').textContent = toFixedOrDash(data.ambient);
         document.getElementById('coil').textContent = toFixedOrDash(data.coil);
         document.getElementById('energy').textContent = toFixedOrDash(data.energyWh);
+        const uptimeElement = document.getElementById('uptime');
+        if (uptimeElement) {
+          uptimeElement.textContent = formatUptimeSeconds(data.uptimeSeconds);
+        }
       }
 
       function updateConfigForm(data) {
