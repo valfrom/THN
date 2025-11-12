@@ -27,6 +27,7 @@ class WebInterface {
   void handleState();
   void handleConfig();
   void handlePowerLog();
+  void handlePowerLogReset();
   void handleNotFound();
   void serveIndex();
 

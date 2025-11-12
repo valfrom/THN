@@ -47,6 +47,8 @@ void PowerLog::logState(unsigned long timestamp,
   lastCompressorState_ = compressorActive;
 }
 
+void PowerLog::clear() { restoreEntries(nullptr, 0, 0.0f); }
+
 size_t PowerLog::copyEntries(Entry *dest, size_t maxEntries) const {
   if (dest == nullptr || maxEntries == 0) {
     return 0;
