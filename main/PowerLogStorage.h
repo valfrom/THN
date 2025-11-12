@@ -37,7 +37,7 @@ class PowerLogStorage {
 
   static constexpr uint32_t kMagic = 0x504C4F47;  // 'PLOG'
   static constexpr uint16_t kVersion = 1;
-  static constexpr unsigned long kSnapshotIntervalMs = 6UL * 60UL * 60UL * 1000UL;
+  static constexpr unsigned long kSnapshotIntervalMs = 1UL * 60UL * 60UL * 1000UL;
 
   void updateDirtyFlags();
 };
