@@ -47,6 +47,65 @@ void PowerLog::logState(unsigned long timestamp,
   lastCompressorState_ = compressorActive;
 }
 
+size_t PowerLog::copyEntries(Entry *dest, size_t maxEntries) const {
+  if (dest == nullptr || maxEntries == 0) {
+    return 0;
+  }
+  size_t available = count_ < maxEntries ? count_ : maxEntries;
+  for (size_t i = 0; i < available; ++i) {
+    size_t index = (head_ + kMaxEntries - count_ + i) % kMaxEntries;
+    dest[i] = entries_[index];
+  }
+  return available;
+}
+
+void PowerLog::restoreEntries(const Entry *entries, size_t count, float totalEnergyWh) {
+  if (entries == nullptr || count == 0) {
+    head_ = 0;
+    count_ = 0;
+    totalEnergyWh_ = totalEnergyWh;
+    initialized_ = false;
+    lastTimestamp_ = 0;
+    lastWatts_ = 0.0f;
+    lastFanSpeedState_ = controller::FanSpeed::kOff;
+    lastCompressorState_ = false;
+    currentMinute_ = 0;
+  } else {
+    size_t limited = count > kMaxEntries ? kMaxEntries : count;
+    for (size_t i = 0; i < limited; ++i) {
+      entries_[i] = entries[i];
+    }
+    count_ = limited;
+    head_ = limited % kMaxEntries;
+    totalEnergyWh_ = totalEnergyWh;
+    initialized_ = true;
+    const Entry &latest = entries_[limited - 1];
+    lastTimestamp_ = latest.timestamp;
+    lastWatts_ = latest.instantaneousWatts;
+    lastFanSpeedState_ = latest.fanSpeed;
+    lastCompressorState_ = latest.compressorActive;
+    currentMinute_ = latest.timestamp / 60000UL;
+  }
+
+  hasCurrentMinute_ = false;
+  currentIndex_ = kMaxEntries;
+  wattMillisAccumulated_ = 0.0f;
+  durationMsAccumulated_ = 0;
+  compressorOnDurationMs_ = 0;
+  for (unsigned long &duration : fanDurationMs_) {
+    duration = 0;
+  }
+}
+
+bool PowerLog::latestEntry(Entry &entry) const {
+  if (count_ == 0) {
+    return false;
+  }
+  size_t index = (head_ + kMaxEntries - 1) % kMaxEntries;
+  entry = entries_[index];
+  return true;
+}
+
 float PowerLog::lookupWatts(controller::FanSpeed fanSpeed, bool compressorActive) const {
   if (!rates_ || rateCount_ == 0) {
     // Fallback generic estimates.

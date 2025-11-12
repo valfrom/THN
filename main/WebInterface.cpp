@@ -3,6 +3,7 @@
 
 #include <ESP8266WiFi.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 namespace interface {
@@ -32,6 +33,7 @@ void WebInterface::registerRoutes() {
   server_.on("/", HTTP_GET, [this]() { serveIndex(); });
   server_.on("/api/state", HTTP_GET, [this]() { handleState(); });
   server_.on("/api/config", HTTP_POST, [this]() { handleConfig(); });
+  server_.on("/api/power-log", HTTP_GET, [this]() { handlePowerLog(); });
   server_.onNotFound([this]() { handleNotFound(); });
 }
 
@@ -192,6 +194,167 @@ void WebInterface::handleConfig() {
   }
 
   server_.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+void WebInterface::handlePowerLog() {
+  unsigned long start = 0;
+  unsigned long end = 0;
+  bool hasStart = false;
+  bool hasEnd = false;
+
+  auto parseUnsigned = [](const String &value, unsigned long &out) -> bool {
+    const char *cstr = value.c_str();
+    if (cstr == nullptr || *cstr == '\0') {
+      return false;
+    }
+    char *endPtr = nullptr;
+    unsigned long parsed = strtoul(cstr, &endPtr, 10);
+    if (endPtr == cstr) {
+      return false;
+    }
+    out = parsed;
+    return true;
+  };
+
+  if (server_.hasArg("start")) {
+    hasStart = parseUnsigned(server_.arg("start"), start);
+  }
+  if (server_.hasArg("end")) {
+    hasEnd = parseUnsigned(server_.arg("end"), end);
+  }
+
+  String json = "{";
+  json += "\"entries\":[";
+
+  size_t appended = 0;
+  const size_t totalCount = powerLog_.size();
+  bool hasEarliest = false;
+  unsigned long earliest = 0;
+  unsigned long latest = 0;
+  bool baselineSet = false;
+  float baselineEnergy = 0.0f;
+  bool startEnergySet = false;
+  float startEnergy = 0.0f;
+  bool endEnergySet = false;
+  float endEnergy = 0.0f;
+  bool filteredStartSet = false;
+  unsigned long filteredStart = 0;
+  unsigned long filteredEnd = 0;
+
+  powerLog_.forEach([&](const logging::PowerLog::Entry &entry) {
+    if (!hasEarliest) {
+      earliest = entry.timestamp;
+      hasEarliest = true;
+    }
+    latest = entry.timestamp;
+
+    if (hasEnd && entry.timestamp > end) {
+      return;
+    }
+
+    if (hasStart && entry.timestamp < start) {
+      baselineEnergy = entry.energyWhAccumulated;
+      baselineSet = true;
+      return;
+    }
+
+    if (!startEnergySet) {
+      startEnergy = baselineSet ? baselineEnergy : entry.energyWhAccumulated;
+      startEnergySet = true;
+    }
+
+    if (!filteredStartSet) {
+      filteredStart = entry.timestamp;
+      filteredStartSet = true;
+    }
+    filteredEnd = entry.timestamp;
+
+    if (appended > 0) {
+      json += ",";
+    }
+
+    json += "{\"t\":" + String(entry.timestamp);
+    json += ",\"wh\":" + String(entry.energyWhAccumulated, 3);
+    json += ",\"watts\":" + String(entry.instantaneousWatts, 1);
+    json += ",\"fan\":\"" + fanSpeedToString(entry.fanSpeed) + "\"";
+    json += ",\"compressor\":";
+    json += entry.compressorActive ? "true" : "false";
+    json += "}";
+
+    ++appended;
+    endEnergy = entry.energyWhAccumulated;
+    endEnergySet = true;
+  });
+
+  json += "]";
+
+  if (!startEnergySet && baselineSet) {
+    startEnergy = baselineEnergy;
+    startEnergySet = true;
+  }
+  if (!endEnergySet && startEnergySet) {
+    endEnergy = startEnergy;
+    endEnergySet = true;
+  }
+
+  unsigned long availableSpan = 0;
+  if (hasEarliest && totalCount > 1 && latest >= earliest) {
+    availableSpan = latest - earliest;
+  }
+  unsigned long filteredSpan = 0;
+  if (filteredStartSet && appended > 1 && filteredEnd >= filteredStart) {
+    filteredSpan = filteredEnd - filteredStart;
+  }
+
+  json += ",\"availableCount\":" + String(totalCount);
+  json += ",\"filteredCount\":" + String(appended);
+  json += ",\"earliest\":";
+  json += hasEarliest ? String(earliest) : String("null");
+  json += ",\"latest\":";
+  json += hasEarliest ? String(latest) : String("null");
+  json += ",\"availableSpanMs\":" + String(availableSpan);
+  json += ",\"filteredSpanMs\":" + String(filteredSpan);
+
+  if (hasStart) {
+    json += ",\"requestedStart\":" + String(start);
+  }
+  if (hasEnd) {
+    json += ",\"requestedEnd\":" + String(end);
+  }
+
+  json += ",\"baselineWh\":";
+  if (baselineSet) {
+    json += String(baselineEnergy, 3);
+  } else if (startEnergySet) {
+    json += String(startEnergy, 3);
+  } else {
+    json += "null";
+  }
+
+  json += ",\"rangeStartEnergyWh\":";
+  if (startEnergySet) {
+    json += String(startEnergy, 3);
+  } else if (baselineSet) {
+    json += String(baselineEnergy, 3);
+  } else {
+    json += "null";
+  }
+
+  json += ",\"rangeEndEnergyWh\":";
+  if (endEnergySet) {
+    json += String(endEnergy, 3);
+  } else if (startEnergySet) {
+    json += String(startEnergy, 3);
+  } else if (baselineSet) {
+    json += String(baselineEnergy, 3);
+  } else {
+    json += "null";
+  }
+
+  json += ",\"totalEnergyWh\":" + String(powerLog_.totalEnergyWh(), 2);
+  json += "}";
+
+  server_.send(200, "application/json", json);
 }
 
 void WebInterface::handleNotFound() { server_.send(404, "application/json", "{\"error\":\"not found\"}"); }

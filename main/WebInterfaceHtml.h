@@ -61,6 +61,83 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         background: #aac6eb;
         cursor: not-allowed;
       }
+      .chart-card-header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .power-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .power-controls-label {
+        font-weight: 600;
+        color: #1f2937;
+      }
+      .power-range-buttons {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .range-button {
+        width: auto;
+        padding: 0.35rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid #0078d4;
+        background: rgba(0, 120, 212, 0.08);
+        color: #0f3558;
+        font-weight: 600;
+        transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+      }
+      .range-button:hover:not(:disabled) {
+        background: rgba(0, 120, 212, 0.2);
+      }
+      .range-button.active {
+        background: #0078d4;
+        border-color: #0062aa;
+        color: #fff;
+      }
+      .range-button:disabled {
+        background: #e2e8f0;
+        border-color: #cbd5e1;
+        color: #94a3b8;
+      }
+      .power-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
+      }
+      .summary-card {
+        background: #f8fafc;
+        border: 1px solid #d8e0e7;
+        border-radius: 8px;
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+      .summary-label {
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .summary-value {
+        font-size: 1.35rem;
+        font-weight: 600;
+        color: #0f172a;
+      }
+      .muted {
+        color: #64748b;
+        font-size: 0.9rem;
+      }
+      .power-notice {
+        margin: 0.35rem 0 0;
+      }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -268,7 +345,34 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           <canvas id="temperatureChart" class="chart" width="720" height="320"></canvas>
         </div>
         <div class="chart-card">
-          <h3>Power (W)</h3>
+          <div class="chart-card-header">
+            <h3>Power (W)</h3>
+            <div class="power-controls">
+              <span class="power-controls-label">Range</span>
+              <div class="power-range-buttons">
+                <button type="button" class="range-button active" data-power-range="week">
+                  Past week
+                </button>
+                <button type="button" class="range-button" data-power-range="month">
+                  Past month
+                </button>
+                <button type="button" class="range-button" data-power-range="year">
+                  Past year
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="power-summary">
+            <div class="summary-card">
+              <div class="summary-label">Total usage</div>
+              <div class="summary-value" id="powerSummaryTotal">-</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Average per day</div>
+              <div class="summary-value" id="powerSummaryAverage">-</div>
+            </div>
+          </div>
+          <p id="powerRangeMessage" class="muted power-notice">Loading power history…</p>
           <canvas id="powerChart" class="chart" width="720" height="320"></canvas>
         </div>
       </div>
@@ -304,6 +408,21 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         receivedAtMs: null,
         formatted: null,
       };
+      const powerRangeButtons = Array.from(
+        document.querySelectorAll('.range-button[data-power-range]'),
+      );
+      const powerSummaryTotal = document.getElementById('powerSummaryTotal');
+      const powerSummaryAverage = document.getElementById('powerSummaryAverage');
+      const powerRangeMessage = document.getElementById('powerRangeMessage');
+      const powerRangeDurations = {
+        week: 7 * 24 * 60 * 60 * 1000,
+        month: 30 * 24 * 60 * 60 * 1000,
+        year: 365 * 24 * 60 * 60 * 1000,
+      };
+      let selectedPowerRange = 'week';
+      let lastPowerHistoryRefresh = 0;
+      const powerHistoryRefreshIntervalMs = 60 * 1000;
+      let powerHistoryRequest = null;
 
       async function fetchState() {
         const response = await fetch('/api/state');
@@ -422,6 +541,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         const toX = (value) => margin.left + ((value - xMin) / xRange) * chartWidth;
         const toY = (value) => margin.top + chartHeight - ((value - yMin) / yRange) * chartHeight;
 
+        const xFormatter = typeof options.xFormatter === 'function' ? options.xFormatter : null;
+
         context.strokeStyle = '#e2e8f0';
         context.lineWidth = 1;
         const xTicks = options.xTicks ?? 5;
@@ -454,14 +575,22 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         context.font = '12px sans-serif';
         context.textBaseline = 'top';
         context.textAlign = 'center';
-        const totalMinutes = xRange / 60000;
-        const minuteDecimals =
-          totalMinutes >= 60 ? 0 : totalMinutes >= 10 ? 0 : totalMinutes >= 3 ? 1 : 2;
         for (let i = 0; i <= xTicks; ++i) {
           const ratio = i / xTicks;
           const x = margin.left + ratio * chartWidth;
-          const minutes = (ratio * xRange) / 60000;
-          context.fillText(`${minutes.toFixed(minuteDecimals)} min`, x, margin.top + chartHeight + 8);
+          let label = '';
+          if (xFormatter) {
+            label = xFormatter({ ratio, range: xRange, min: xMin, max: xMax });
+          } else {
+            const totalMinutes = xRange / 60000;
+            const minuteDecimals =
+              totalMinutes >= 60 ? 0 : totalMinutes >= 10 ? 0 : totalMinutes >= 3 ? 1 : 2;
+            const minutes = (ratio * xRange) / 60000;
+            label = `${minutes.toFixed(minuteDecimals)} min`;
+          }
+          if (typeof label === 'string' && label.length > 0) {
+            context.fillText(label, x, margin.top + chartHeight + 8);
+          }
         }
 
         context.textAlign = 'right';
@@ -578,6 +707,32 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
               .filter((entry) => entry !== null)
           : [];
 
+        const xFormatter = ({ ratio, range }) => {
+          if (!Number.isFinite(range) || range <= 0) {
+            return '';
+          }
+          const totalHours = range / 3600000;
+          if (totalHours >= 24 * 30) {
+            const totalDays = range / 86400000;
+            const days = ratio * totalDays;
+            const decimals = totalDays >= 60 ? 0 : totalDays >= 14 ? 1 : 2;
+            return `${days.toFixed(decimals)} d`;
+          }
+          if (totalHours >= 24) {
+            const totalDays = range / 86400000;
+            const days = ratio * totalDays;
+            const decimals = totalDays >= 10 ? 1 : 2;
+            return `${days.toFixed(decimals)} d`;
+          }
+          if (totalHours >= 6) {
+            const hours = ratio * totalHours;
+            return `${hours.toFixed(0)} h`;
+          }
+          const minutes = (ratio * range) / 60000;
+          const decimals = minutes >= 10 ? 0 : 1;
+          return `${minutes.toFixed(decimals)} min`;
+        };
+
         renderLineChart(
           canvas,
           [
@@ -587,8 +742,239 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
               data: prepared.map((entry) => ({ x: entry.time, y: entry.watts })),
             },
           ],
-          { yUnit: 'W' },
+          { yUnit: 'W', xFormatter },
         );
+      }
+
+      function setActivePowerRange(range) {
+        powerRangeButtons.forEach((button) => {
+          if (button.dataset.powerRange === range) {
+            button.classList.add('active');
+          } else {
+            button.classList.remove('active');
+          }
+        });
+      }
+
+      function formatEnergyWh(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return '-';
+        }
+        const absolute = Math.abs(numeric);
+        if (absolute >= 1000) {
+          const kilo = numeric / 1000;
+          const decimals = Math.abs(kilo) >= 10 ? 1 : 2;
+          return `${kilo.toFixed(decimals)} kWh`;
+        }
+        if (absolute >= 100) {
+          return `${numeric.toFixed(0)} Wh`;
+        }
+        return `${numeric.toFixed(1)} Wh`;
+      }
+
+      function formatShortDate(timestampMs) {
+        const numeric = Number(timestampMs);
+        if (!Number.isFinite(numeric)) {
+          return '';
+        }
+        const date = new Date(numeric);
+        const month = date.toLocaleDateString(undefined, { month: 'short' });
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${month} ${day} ${hours}:${minutes}`;
+      }
+
+      function describeDuration(ms) {
+        const numeric = Number(ms);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+          return '0 minutes';
+        }
+        const days = numeric / 86400000;
+        if (days >= 1) {
+          const decimals = days >= 10 ? 0 : 1;
+          const value = days.toFixed(decimals);
+          return `${value} day${Number(value) === 1 ? '' : 's'}`;
+        }
+        const hours = numeric / 3600000;
+        if (hours >= 1) {
+          const decimals = hours >= 10 ? 0 : 1;
+          const value = hours.toFixed(decimals);
+          return `${value} hour${Number(value) === 1 ? '' : 's'}`;
+        }
+        const minutes = numeric / 60000;
+        const decimals = minutes >= 10 ? 0 : 1;
+        const value = minutes.toFixed(decimals);
+        return `${value} minute${Number(value) === 1 ? '' : 's'}`;
+      }
+
+      function updatePowerRangeAvailability(meta) {
+        const availableCount = Number(meta?.availableCount) || 0;
+        const availableSpanMs = Number(meta?.availableSpanMs);
+        let fallbackRange = null;
+        powerRangeButtons.forEach((button) => {
+          const range = button.dataset.powerRange;
+          const duration = powerRangeDurations[range] || powerRangeDurations.week;
+          let enabled = availableCount >= 2;
+          if (range !== 'week') {
+            enabled = enabled && Number.isFinite(availableSpanMs) && availableSpanMs >= duration;
+          }
+          button.disabled = !enabled;
+          if (enabled && fallbackRange === null) {
+            fallbackRange = range;
+          }
+        });
+        const selectedButton = powerRangeButtons.find(
+          (button) => button.dataset.powerRange === selectedPowerRange,
+        );
+        if (selectedButton && selectedButton.disabled && fallbackRange && fallbackRange !== selectedPowerRange) {
+          selectedPowerRange = fallbackRange;
+          setActivePowerRange(selectedPowerRange);
+          return true;
+        }
+        return false;
+      }
+
+      function applyPowerHistoryResponse(data) {
+        const entries = Array.isArray(data?.entries) ? data.entries : [];
+        renderPowerChart(document.getElementById('powerChart'), entries);
+
+        const baselineWh = Number(data?.rangeStartEnergyWh);
+        const endWh = Number(data?.rangeEndEnergyWh);
+        let totalWh =
+          Number.isFinite(baselineWh) && Number.isFinite(endWh) ? endWh - baselineWh : NaN;
+        if (Number.isFinite(totalWh) && totalWh < 0) {
+          totalWh = 0;
+        }
+        const filteredSpanMs = Number(data?.filteredSpanMs);
+        const filteredCount = Number(data?.filteredCount) || entries.length;
+
+        if (!Number.isFinite(totalWh) || filteredCount < 2) {
+          powerSummaryTotal.textContent = '-';
+          powerSummaryAverage.textContent = '-';
+        } else {
+          powerSummaryTotal.textContent = formatEnergyWh(totalWh);
+          const days = filteredSpanMs > 0 ? filteredSpanMs / (24 * 60 * 60 * 1000) : 0;
+          if (days > 0.05) {
+            powerSummaryAverage.textContent = `${formatEnergyWh(totalWh / days)} / day`;
+          } else {
+            powerSummaryAverage.textContent = `${formatEnergyWh(totalWh)} / day`;
+          }
+        }
+
+        if (!powerRangeMessage) {
+          return;
+        }
+
+        if (filteredCount < 2) {
+          powerRangeMessage.textContent =
+            'Collecting power history… need at least two samples to chart this range.';
+          return;
+        }
+
+        const rangeDuration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
+        const coverageMs = Number.isFinite(filteredSpanMs) ? filteredSpanMs : 0;
+        if (entries.length === 0) {
+          powerRangeMessage.textContent = 'No power history available yet.';
+          return;
+        }
+
+        const coverageAdequate = Number.isFinite(rangeDuration)
+          ? coverageMs + 60000 >= rangeDuration
+          : true;
+        if (!coverageAdequate) {
+          const remainingMs = Math.max(0, rangeDuration - coverageMs);
+          const neededDays = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
+          const coverageLabel = describeDuration(coverageMs);
+          const suffix = neededDays > 0 ? `${neededDays} more day${neededDays === 1 ? '' : 's'}` : 'more time';
+          powerRangeMessage.textContent = `Only ${coverageLabel} of history so far – ${suffix} needed for a full ${selectedPowerRange}.`;
+          return;
+        }
+
+        const startText = formatShortDate(entries[0].t);
+        const endText = formatShortDate(entries[entries.length - 1].t);
+        if (startText && endText) {
+          powerRangeMessage.textContent = `Showing ${filteredCount} samples from ${startText} to ${endText}.`;
+        } else {
+          powerRangeMessage.textContent = `Showing ${filteredCount} samples spanning ${describeDuration(
+            coverageMs,
+          )}.`;
+        }
+      }
+
+      async function refreshPowerHistory(force = false) {
+        if (powerRangeButtons.length === 0) {
+          return;
+        }
+        if (powerHistoryRequest) {
+          if (!force) {
+            return powerHistoryRequest;
+          }
+          try {
+            await powerHistoryRequest;
+          } catch (err) {
+            console.error(err);
+          }
+        }
+
+        const now = Date.now();
+        if (!force && now - lastPowerHistoryRefresh < powerHistoryRefreshIntervalMs) {
+          return;
+        }
+        lastPowerHistoryRefresh = now;
+
+        const requestPromise = (async () => {
+          let referenceMs = Date.now();
+          if (
+            currentTimeState.epochSeconds !== null &&
+            currentTimeState.receivedAtMs !== null
+          ) {
+            referenceMs =
+              currentTimeState.epochSeconds * 1000 + (Date.now() - currentTimeState.receivedAtMs);
+          } else if (currentTimeState.epochSeconds !== null) {
+            referenceMs = currentTimeState.epochSeconds * 1000;
+          }
+          const duration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
+          const startMs = Math.max(0, Math.floor(referenceMs - duration));
+          const params = new URLSearchParams();
+          if (Number.isFinite(startMs)) {
+            params.set('start', String(startMs));
+          }
+          const url = params.toString().length > 0 ? `/api/power-log?${params}` : '/api/power-log';
+          if (powerRangeMessage) {
+            powerRangeMessage.textContent = 'Loading power history…';
+          }
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error('Failed to load power history');
+          }
+          const data = await response.json();
+          const switched = updatePowerRangeAvailability(data);
+          if (switched) {
+            lastPowerHistoryRefresh = 0;
+            setTimeout(() => {
+              refreshPowerHistory(true).catch((err) => console.error(err));
+            }, 0);
+            return;
+          }
+          applyPowerHistoryResponse(data);
+        })();
+
+        powerHistoryRequest = requestPromise;
+        try {
+          await requestPromise;
+        } catch (error) {
+          console.error(error);
+          if (powerRangeMessage) {
+            powerRangeMessage.textContent = error.message || 'Power history unavailable.';
+          }
+          powerSummaryTotal.textContent = '-';
+          powerSummaryAverage.textContent = '-';
+          renderPowerChart(document.getElementById('powerChart'), []);
+        } finally {
+          powerHistoryRequest = null;
+        }
       }
 
       function formatTimestamp(epochSeconds) {
@@ -781,10 +1167,6 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           document.getElementById('temperatureChart'),
           data && Array.isArray(data.temperatureLog) ? data.temperatureLog : [],
         );
-        renderPowerChart(
-          document.getElementById('powerChart'),
-          data && Array.isArray(data.powerLog) ? data.powerLog : [],
-        );
       }
 
       async function refreshState(options = {}) {
@@ -795,6 +1177,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         if (updateForm) {
           updateConfigForm(data);
         }
+        refreshPowerHistory().catch((err) => console.error(err));
       }
 
       function handleRefreshError(error, showToUser) {
@@ -831,9 +1214,25 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         }
       });
 
+      setActivePowerRange(selectedPowerRange);
+      powerRangeButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          if (button.disabled) {
+            return;
+          }
+          const range = button.dataset.powerRange;
+          if (range && range !== selectedPowerRange) {
+            selectedPowerRange = range;
+            setActivePowerRange(selectedPowerRange);
+            refreshPowerHistory(true).catch((err) => console.error(err));
+          }
+        });
+      });
+
       (async () => {
         try {
           await refreshState({ updateForm: true });
+          await refreshPowerHistory(true);
         } catch (err) {
           handleRefreshError(err, true);
         }
