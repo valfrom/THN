@@ -359,6 +359,14 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     </section>
 
     <section>
+      <h2>Current</h2>
+      <div class="chart-card">
+        <h3>Power (Last 30 Minutes)</h3>
+        <canvas id="currentPowerChart" class="chart" width="720" height="240"></canvas>
+      </div>
+    </section>
+
+    <section>
       <h2>Logs</h2>
       <div class="grid">
         <div class="chart-card">
@@ -436,6 +444,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         uptimeReceivedAtMs: null,
         clockOffsetMs: null,
       };
+      const currentPowerChart = document.getElementById('currentPowerChart');
       const powerRangeButtons = Array.from(
         document.querySelectorAll('.range-button[data-power-range]'),
       );
@@ -443,6 +452,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       const powerSummaryTotal = document.getElementById('powerSummaryTotal');
       const powerSummaryAverage = document.getElementById('powerSummaryAverage');
       const powerRangeMessage = document.getElementById('powerRangeMessage');
+      const currentPowerWindowMs = 30 * 60 * 1000;
       const powerRangeDurations = {
         day: 24 * 60 * 60 * 1000,
         week: 7 * 24 * 60 * 60 * 1000,
@@ -715,6 +725,119 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           ],
           { yUnit: '°C' },
         );
+      }
+
+      function renderCurrentPowerChart(canvas, entries) {
+        const summary = {
+          type: 'current',
+          sampleCount: 0,
+          hasData: false,
+          windowStartEpoch: null,
+          windowEndEpoch: null,
+        };
+        if (!canvas) {
+          return summary;
+        }
+        const context = canvas.getContext('2d');
+        if (!context) {
+          return summary;
+        }
+
+        const drawEmptyState = (message) => {
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.fillStyle = '#ffffff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.fillStyle = '#6b7280';
+          context.font = '14px sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(message, canvas.width / 2, canvas.height / 2);
+        };
+
+        const prepared = Array.isArray(entries)
+          ? entries
+              .map((entry) => {
+                const uptime = Number(entry?.t);
+                if (!Number.isFinite(uptime)) {
+                  return null;
+                }
+                const wattsValue =
+                  entry.watts === null || typeof entry.watts === 'undefined'
+                    ? NaN
+                    : Number(entry.watts);
+                if (!Number.isFinite(wattsValue)) {
+                  return null;
+                }
+                const epochValue = uptimeToEpochMs(uptime);
+                const axisTime = Number.isFinite(epochValue) ? epochValue : uptime;
+                return {
+                  axisTime,
+                  watts: wattsValue,
+                };
+              })
+              .filter((entry) => entry !== null)
+          : [];
+
+        if (prepared.length === 0) {
+          drawEmptyState('No power samples yet.');
+          return summary;
+        }
+
+        const sorted = [...prepared].sort((a, b) => a.axisTime - b.axisTime);
+        const latestEntry = sorted[sorted.length - 1];
+        const latestTime = latestEntry?.axisTime;
+        if (!Number.isFinite(latestTime)) {
+          drawEmptyState('No recent power samples.');
+          return summary;
+        }
+
+        const earliestTime = sorted[0]?.axisTime ?? latestTime;
+        const windowStart = Math.max(latestTime - currentPowerWindowMs, earliestTime);
+        const recent = sorted.filter((entry) => entry.axisTime >= windowStart);
+        if (recent.length === 0) {
+          drawEmptyState('No power samples in the last 30 minutes.');
+          return summary;
+        }
+
+        summary.sampleCount = recent.length;
+        summary.hasData = true;
+        summary.windowStartEpoch = windowStart;
+        summary.windowEndEpoch = latestTime;
+
+        const chartData = [...recent];
+        if (chartData.length > 0 && chartData[0].axisTime > windowStart) {
+          chartData.unshift({ axisTime: windowStart, watts: chartData[0].watts });
+        }
+        if (chartData.length > 0 && chartData[chartData.length - 1].axisTime < latestTime) {
+          chartData.push({ axisTime: latestTime, watts: chartData[chartData.length - 1].watts });
+        }
+
+        const xFormatter = ({ ratio, range }) => {
+          if (!Number.isFinite(range) || range <= 0) {
+            return '';
+          }
+          const minutes = (ratio * range) / 60000;
+          const decimals = range >= 20 * 60000 ? 0 : range >= 5 * 60000 ? 1 : 2;
+          return `${minutes.toFixed(decimals)} min`;
+        };
+
+        renderLineChart(
+          canvas,
+          [
+            {
+              label: 'Watts',
+              color: '#2ca02c',
+              data: chartData.map((entry) => ({ x: entry.axisTime, y: entry.watts })),
+            },
+          ],
+          {
+            yUnit: 'W',
+            xFormatter,
+            margin: { left: 60, right: 18, top: 48, bottom: 48 },
+          },
+        );
+
+        return summary;
       }
 
       function renderPowerChart(canvas, entries, meta = {}) {
@@ -1469,6 +1592,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
       function applyPowerHistoryResponse(data) {
         const entries = Array.isArray(data?.entries) ? data.entries : [];
+        renderCurrentPowerChart(currentPowerChart, entries);
+
         const chartSummary = renderPowerChart(
           document.getElementById('powerChart'),
           entries,
@@ -1720,6 +1845,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           }
           powerSummaryTotal.textContent = '-';
           powerSummaryAverage.textContent = '-';
+          renderCurrentPowerChart(currentPowerChart, []);
           renderPowerChart(document.getElementById('powerChart'), []);
         } finally {
           powerHistoryRequest = null;
@@ -2050,6 +2176,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             }
             powerSummaryTotal.textContent = '-';
             powerSummaryAverage.textContent = '-';
+            renderCurrentPowerChart(currentPowerChart, []);
             renderPowerChart(document.getElementById('powerChart'), []);
             lastPowerHistoryRefresh = 0;
             await refreshPowerHistory(true);
@@ -2066,6 +2193,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           }
         });
       }
+
+      renderCurrentPowerChart(currentPowerChart, []);
 
       (async () => {
         try {
