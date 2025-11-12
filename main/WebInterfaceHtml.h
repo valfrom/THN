@@ -350,7 +350,10 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             <div class="power-controls">
               <span class="power-controls-label">Range</span>
               <div class="power-range-buttons">
-                <button type="button" class="range-button active" data-power-range="week">
+                <button type="button" class="range-button active" data-power-range="day">
+                  Past day
+                </button>
+                <button type="button" class="range-button" data-power-range="week">
                   Past week
                 </button>
                 <button type="button" class="range-button" data-power-range="month">
@@ -415,11 +418,12 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       const powerSummaryAverage = document.getElementById('powerSummaryAverage');
       const powerRangeMessage = document.getElementById('powerRangeMessage');
       const powerRangeDurations = {
+        day: 24 * 60 * 60 * 1000,
         week: 7 * 24 * 60 * 60 * 1000,
         month: 30 * 24 * 60 * 60 * 1000,
         year: 365 * 24 * 60 * 60 * 1000,
       };
-      let selectedPowerRange = 'week';
+      let selectedPowerRange = 'day';
       let lastPowerHistoryRefresh = 0;
       const powerHistoryRefreshIntervalMs = 60 * 1000;
       let powerHistoryRequest = null;
@@ -817,7 +821,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           const range = button.dataset.powerRange;
           const duration = powerRangeDurations[range] || powerRangeDurations.week;
           let enabled = availableCount >= 2;
-          if (range !== 'week') {
+          if (range !== 'day' && range !== 'week') {
             enabled = enabled && Number.isFinite(availableSpanMs) && availableSpanMs >= duration;
           }
           button.disabled = !enabled;
