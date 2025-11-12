@@ -715,6 +715,11 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       }
 
       function renderPowerChart(canvas, entries) {
+        if (selectedPowerRange === 'day') {
+          renderDayPowerBarChart(canvas, entries);
+          return;
+        }
+
         const prepared = Array.isArray(entries)
           ? entries
               .map((entry) => {
@@ -770,6 +775,155 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             },
           ],
           { yUnit: 'W', xFormatter },
+        );
+      }
+
+      function renderDayPowerBarChart(canvas, entries) {
+        if (!canvas) {
+          return;
+        }
+        const context = canvas.getContext('2d');
+        if (!context) {
+          return;
+        }
+
+        const width = canvas.width;
+        const height = canvas.height;
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+
+        const drawEmptyState = (message) => {
+          context.fillStyle = '#6b7280';
+          context.font = '14px sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(message, width / 2, height / 2);
+        };
+
+        let referenceMs = Date.now();
+        if (currentTimeState.epochSeconds !== null && currentTimeState.receivedAtMs !== null) {
+          referenceMs =
+            currentTimeState.epochSeconds * 1000 + (Date.now() - currentTimeState.receivedAtMs);
+        } else if (currentTimeState.epochSeconds !== null) {
+          referenceMs = currentTimeState.epochSeconds * 1000;
+        } else if (Array.isArray(entries) && entries.length > 0) {
+          referenceMs = Number(entries[entries.length - 1].t) || referenceMs;
+        }
+
+        const referenceDate = new Date(referenceMs);
+        referenceDate.setHours(0, 0, 0, 0);
+        const dayStartMs = referenceDate.getTime();
+        const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
+
+        const buckets = Array.from({ length: 24 }, () => ({ sum: 0, count: 0 }));
+        if (Array.isArray(entries)) {
+          entries.forEach((entry) => {
+            const time = Number(entry.t);
+            const wattsValue =
+              entry.watts === null || typeof entry.watts === 'undefined'
+                ? NaN
+                : Number(entry.watts);
+            if (!Number.isFinite(time) || !Number.isFinite(wattsValue)) {
+              return;
+            }
+            if (time < dayStartMs || time >= dayEndMs) {
+              return;
+            }
+            const hourIndex = Math.floor((time - dayStartMs) / 3600000);
+            if (hourIndex < 0 || hourIndex >= buckets.length) {
+              return;
+            }
+            buckets[hourIndex].sum += wattsValue;
+            buckets[hourIndex].count += 1;
+          });
+        }
+
+        const hasSamples = buckets.some((bucket) => bucket.count > 0);
+        if (!hasSamples) {
+          drawEmptyState('No power samples for this day yet');
+          return;
+        }
+
+        const averages = buckets.map((bucket) =>
+          bucket.count > 0 ? bucket.sum / bucket.count : 0,
+        );
+        const maxAverage = Math.max(...averages);
+        const yMax = maxAverage > 0 ? Math.max(maxAverage * 1.1, maxAverage + 5) : 10;
+        const yTicks = 5;
+        const margin = { left: 60, right: 18, top: 48, bottom: 56 };
+        const chartWidth = Math.max(1, width - margin.left - margin.right);
+        const chartHeight = Math.max(1, height - margin.top - margin.bottom);
+
+        const toY = (value) =>
+          margin.top + chartHeight - Math.min(1, Math.max(0, value / yMax)) * chartHeight;
+
+        context.strokeStyle = '#e2e8f0';
+        context.lineWidth = 1;
+        for (let i = 0; i <= yTicks; ++i) {
+          const ratio = i / yTicks;
+          const y = margin.top + chartHeight - ratio * chartHeight;
+          context.beginPath();
+          context.moveTo(margin.left, y);
+          context.lineTo(margin.left + chartWidth, y);
+          context.stroke();
+        }
+
+        context.strokeStyle = '#94a3b8';
+        context.beginPath();
+        context.moveTo(margin.left, margin.top);
+        context.lineTo(margin.left, margin.top + chartHeight);
+        context.lineTo(margin.left + chartWidth, margin.top + chartHeight);
+        context.stroke();
+
+        const slotWidth = chartWidth / buckets.length;
+        const barWidth = Math.max(6, slotWidth * 0.6);
+        const barColor = '#2ca02c';
+        const labelDates = Array.from({ length: buckets.length }, (_, index) =>
+          new Date(dayStartMs + index * 3600000),
+        );
+
+        context.fillStyle = barColor;
+        buckets.forEach((bucket, index) => {
+          const average = averages[index];
+          const barHeight = chartHeight * (Math.min(average, yMax) / yMax);
+          const x = margin.left + index * slotWidth + (slotWidth - barWidth) / 2;
+          const y = margin.top + chartHeight - barHeight;
+          context.fillRect(x, y, barWidth, barHeight);
+        });
+
+        context.fillStyle = '#475569';
+        context.font = '12px sans-serif';
+        context.textAlign = 'right';
+        context.textBaseline = 'middle';
+        for (let i = 0; i <= yTicks; ++i) {
+          const ratio = i / yTicks;
+          const value = yMax * ratio;
+          const y = toY(value);
+          const label = value.toFixed(value >= 50 ? 0 : value >= 10 ? 1 : 2);
+          context.fillText(`${label} W`, margin.left - 8, y);
+        }
+
+        context.textAlign = 'center';
+        context.textBaseline = 'top';
+        labelDates.forEach((date, index) => {
+          const label = date.toLocaleTimeString([], { hour: '2-digit' });
+          const x = margin.left + index * slotWidth + slotWidth / 2;
+          const y = margin.top + chartHeight + 8;
+          if (index % 2 === 0) {
+            context.fillText(label, x, y);
+          }
+        });
+
+        context.textAlign = 'left';
+        context.textBaseline = 'middle';
+        context.fillStyle = barColor;
+        context.fillRect(margin.left, Math.max(18, margin.top - 26), 12, 12);
+        context.fillStyle = '#1f2937';
+        context.fillText(
+          'Average Watts per Hour',
+          margin.left + 16,
+          Math.max(18, margin.top - 20),
         );
       }
 
@@ -843,7 +997,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         powerRangeButtons.forEach((button) => {
           const range = button.dataset.powerRange;
           const duration = powerRangeDurations[range] || powerRangeDurations.week;
-          let enabled = availableCount >= 2;
+          let enabled = range === 'day' ? availableCount >= 1 : availableCount >= 2;
           if (range !== 'day' && range !== 'week') {
             enabled = enabled && Number.isFinite(availableSpanMs) && availableSpanMs >= duration;
           }
@@ -894,7 +1048,12 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           return;
         }
 
-        if (filteredCount < 2) {
+        if (filteredCount === 0 || entries.length === 0) {
+          powerRangeMessage.textContent = 'No power history available yet.';
+          return;
+        }
+
+        if (selectedPowerRange !== 'day' && filteredCount < 2) {
           powerRangeMessage.textContent =
             'Collecting power history… need at least two samples to chart this range.';
           return;
@@ -902,20 +1061,40 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
         const rangeDuration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
         const coverageMs = Number.isFinite(filteredSpanMs) ? filteredSpanMs : 0;
-        if (entries.length === 0) {
-          powerRangeMessage.textContent = 'No power history available yet.';
-          return;
-        }
-
-        const coverageAdequate = Number.isFinite(rangeDuration)
-          ? coverageMs + 60000 >= rangeDuration
-          : true;
+        
+        const coverageAdequate = selectedPowerRange === 'day'
+          ? true
+          : Number.isFinite(rangeDuration)
+              ? coverageMs + 60000 >= rangeDuration
+              : true;
         if (!coverageAdequate) {
           const remainingMs = Math.max(0, rangeDuration - coverageMs);
           const neededDays = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
           const coverageLabel = describeDuration(coverageMs);
           const suffix = neededDays > 0 ? `${neededDays} more day${neededDays === 1 ? '' : 's'}` : 'more time';
           powerRangeMessage.textContent = `Only ${coverageLabel} of history so far – ${suffix} needed for a full ${selectedPowerRange}.`;
+          return;
+        }
+
+        if (selectedPowerRange === 'day') {
+          let firstTimestamp = null;
+          entries.forEach((entry) => {
+            const value = Number(entry?.t);
+            if (!Number.isFinite(value)) {
+              return;
+            }
+            if (firstTimestamp === null || value < firstTimestamp) {
+              firstTimestamp = value;
+            }
+          });
+          const date = firstTimestamp !== null ? new Date(firstTimestamp) : new Date();
+          const formattedDate = date.toLocaleDateString(undefined, {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+          });
+          const sampleLabel = filteredCount === 1 ? 'sample' : 'samples';
+          powerRangeMessage.textContent = `Showing hourly averages for ${formattedDate} (${filteredCount} ${sampleLabel}).`;
           return;
         }
 
@@ -963,8 +1142,17 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             referenceMs = currentTimeState.epochSeconds * 1000;
           }
           const duration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
-          const startMs = Math.max(0, Math.floor(referenceMs - duration));
+          let startMs = Math.max(0, Math.floor(referenceMs - duration));
           const params = new URLSearchParams();
+          if (selectedPowerRange === 'day') {
+            const dayStart = new Date(referenceMs);
+            dayStart.setHours(0, 0, 0, 0);
+            startMs = dayStart.getTime();
+            const dayEnd = dayStart.getTime() + 24 * 60 * 60 * 1000 - 1;
+            if (Number.isFinite(dayEnd)) {
+              params.set('end', String(dayEnd));
+            }
+          }
           if (Number.isFinite(startMs)) {
             params.set('start', String(startMs));
           }
