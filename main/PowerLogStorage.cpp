@@ -137,7 +137,7 @@ bool PowerLogStorage::save() {
   return true;
 }
 
-void PowerLogStorage::loop() {
+void PowerLogStorage::update() {
   if (!available_) {
     return;
   }

@@ -328,6 +328,6 @@ void loop() {
   ArduinoOTA.handle();
   scheduleManager.update(hvac);
   hvac.update();
-  powerLogStorage.loop();
+  powerLogStorage.update();
   webInterface.handleClient();
 }

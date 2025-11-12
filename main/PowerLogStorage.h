@@ -13,7 +13,7 @@ class PowerLogStorage {
   bool begin();
   bool load();
   bool save();
-  void loop();
+  void update();
   void markDirty();
 
  private:
