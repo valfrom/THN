@@ -992,15 +992,10 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
       function updatePowerRangeAvailability(meta) {
         const availableCount = Number(meta?.availableCount) || 0;
-        const availableSpanMs = Number(meta?.availableSpanMs);
         let fallbackRange = null;
         powerRangeButtons.forEach((button) => {
           const range = button.dataset.powerRange;
-          const duration = powerRangeDurations[range] || powerRangeDurations.week;
-          let enabled = range === 'day' ? availableCount >= 1 : availableCount >= 2;
-          if (range !== 'day' && range !== 'week') {
-            enabled = enabled && Number.isFinite(availableSpanMs) && availableSpanMs >= duration;
-          }
+          const enabled = availableCount >= 1;
           button.disabled = !enabled;
           if (enabled && fallbackRange === null) {
             fallbackRange = range;
@@ -1053,26 +1048,26 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           return;
         }
 
-        if (selectedPowerRange !== 'day' && filteredCount < 2) {
-          powerRangeMessage.textContent =
-            'Collecting power history… need at least two samples to chart this range.';
-          return;
-        }
-
         const rangeDuration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
         const coverageMs = Number.isFinite(filteredSpanMs) ? filteredSpanMs : 0;
-        
+
         const coverageAdequate = selectedPowerRange === 'day'
           ? true
           : Number.isFinite(rangeDuration)
               ? coverageMs + 60000 >= rangeDuration
               : true;
+        if (selectedPowerRange !== 'day' && filteredCount < 2) {
+          const coverageLabel = coverageMs > 0 ? describeDuration(coverageMs) : 'no history yet';
+          powerRangeMessage.textContent = `Showing partial history (${coverageLabel}). Waiting for more samples to chart trends.`;
+          return;
+        }
+
         if (!coverageAdequate) {
           const remainingMs = Math.max(0, rangeDuration - coverageMs);
           const neededDays = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
           const coverageLabel = describeDuration(coverageMs);
           const suffix = neededDays > 0 ? `${neededDays} more day${neededDays === 1 ? '' : 's'}` : 'more time';
-          powerRangeMessage.textContent = `Only ${coverageLabel} of history so far – ${suffix} needed for a full ${selectedPowerRange}.`;
+          powerRangeMessage.textContent = `Showing ${coverageLabel} so far – ${suffix} needed for a full ${selectedPowerRange}.`;
           return;
         }
 
