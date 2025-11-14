@@ -10,7 +10,7 @@ namespace controller {
 class Compressor {
  public:
   Compressor(uint8_t relayPin,
-             unsigned long minRuntimeMs = 5UL * 60UL * 1000UL,
+             unsigned long minRuntimeMs = 1UL * 60UL * 1000UL,
              unsigned long restartDelayMs = 120UL * 1000UL);
 
   void begin();
