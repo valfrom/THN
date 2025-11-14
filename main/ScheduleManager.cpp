@@ -73,7 +73,7 @@ float ScheduleManager::timezoneOffsetHours() const {
 }
 
 void ScheduleManager::update(controller::HVACController &hvac) const {
-  if (!hvac.schedulingEnabled()) {
+  if (!hvac.scheduleUpdatesAllowed()) {
     return;
   }
 

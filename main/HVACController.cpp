@@ -87,7 +87,53 @@ unsigned long HVACController::compressorCooldownRemainingMs() const {
   return compressorCooldownUntil_ > now ? (compressorCooldownUntil_ - now) : 0;
 }
 
-void HVACController::enableScheduling(bool enabled) { schedulingEnabled_ = enabled; }
+void HVACController::enableScheduling(bool enabled) {
+  schedulingEnabled_ = enabled;
+  if (!schedulingEnabled_) {
+    scheduleIgnoreUntilMs_ = 0;
+  }
+}
+
+void HVACController::ignoreScheduleForMinutes(uint16_t minutes) {
+  if (minutes == 0) {
+    scheduleIgnoreUntilMs_ = 0;
+    return;
+  }
+  unsigned long durationMs = static_cast<unsigned long>(minutes) * 60UL * 1000UL;
+  if (durationMs == 0) {
+    // Overflow or extremely small value, default to one minute.
+    durationMs = 60UL * 1000UL;
+  }
+  unsigned long now = millis();
+  if (std::numeric_limits<unsigned long>::max() - now < durationMs) {
+    scheduleIgnoreUntilMs_ = std::numeric_limits<unsigned long>::max();
+  } else {
+    scheduleIgnoreUntilMs_ = now + durationMs;
+  }
+}
+
+bool HVACController::scheduleIgnoreActive() const {
+  if (scheduleIgnoreUntilMs_ == 0) {
+    return false;
+  }
+  unsigned long now = millis();
+  return scheduleIgnoreUntilMs_ > now;
+}
+
+unsigned long HVACController::scheduleIgnoreRemainingMs() const {
+  if (scheduleIgnoreUntilMs_ == 0) {
+    return 0;
+  }
+  unsigned long now = millis();
+  if (scheduleIgnoreUntilMs_ <= now) {
+    return 0;
+  }
+  return scheduleIgnoreUntilMs_ - now;
+}
+
+bool HVACController::scheduleUpdatesAllowed() const {
+  return schedulingEnabled_ && !scheduleIgnoreActive();
+}
 
 void HVACController::setFanMode(FanMode mode) { fanMode_ = mode; }
 
