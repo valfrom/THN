@@ -2214,9 +2214,24 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         }
       }
 
+      function buildConfigPayload(extraParams = null) {
+        const formData = new FormData(configForm);
+        if (!configForm.scheduling.checked) {
+          formData.set('scheduling', 'false');
+        }
+        const payload = new URLSearchParams(formData);
+        if (extraParams && typeof extraParams === 'object') {
+          Object.entries(extraParams).forEach(([key, value]) => {
+            if (typeof value !== 'undefined' && value !== null) {
+              payload.set(key, String(value));
+            }
+          });
+        }
+        return payload;
+      }
+
       async function sendScheduleIgnoreRequest(minutes) {
-        const payload = new URLSearchParams();
-        payload.set('scheduleIgnoreMinutes', String(minutes));
+        const payload = buildConfigPayload({ scheduleIgnoreMinutes: minutes });
         const response = await fetch('/api/config', {
           method: 'POST',
           body: payload,
@@ -2263,11 +2278,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
       configForm.addEventListener('submit', async (event) => {
         event.preventDefault();
-        const formData = new FormData(configForm);
-        if (!configForm.scheduling.checked) {
-          formData.set('scheduling', 'false');
-        }
-        const payload = new URLSearchParams(formData);
+        const payload = buildConfigPayload();
         configStatus.textContent = 'Saving…';
         configStatus.style.color = '#333';
         try {
