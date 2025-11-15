@@ -58,6 +58,16 @@ void WebInterface::handleState() {
   json += ",\"fanMode\":\"" + fanModeToString(controller_.fanMode()) + "\"";
   json += ",\"systemMode\":\"" + systemModeToString(controller_.systemMode()) + "\"";
   json += controller_.schedulingEnabled() ? ",\"scheduling\":true" : ",\"scheduling\":false";
+  if (controller_.scheduleIgnoreActive()) {
+    unsigned long remainingSeconds =
+        (controller_.scheduleIgnoreRemainingMs() + 500UL) / 1000UL;
+    json += ",\"scheduleIgnoreActive\":true";
+    json += ",\"scheduleIgnoreRemainingSeconds\":" +
+            String(static_cast<unsigned long>(remainingSeconds));
+  } else {
+    json += ",\"scheduleIgnoreActive\":false";
+    json += ",\"scheduleIgnoreRemainingSeconds\":0";
+  }
   json += controller_.compressorRunning() ? ",\"compressor\":true" : ",\"compressor\":false";
   float compressorTimeoutSeconds =
       static_cast<float>(controller_.compressor().restartDelayRemaining()) / 1000.0f;
@@ -181,6 +191,14 @@ void WebInterface::handleConfig() {
   }
   if (server_.hasArg("scheduling")) {
     controller_.enableScheduling(server_.arg("scheduling") == "true");
+  }
+  if (server_.hasArg("scheduleIgnoreMinutes")) {
+    int minutes = server_.arg("scheduleIgnoreMinutes").toInt();
+    if (minutes <= 0) {
+      controller_.ignoreScheduleForMinutes(0);
+    } else {
+      controller_.ignoreScheduleForMinutes(static_cast<uint16_t>(min(minutes, 1440)));
+    }
   }
   if (server_.hasArg("weekday")) {
     updateScheduleFromArg(server_.arg("weekday"), &scheduler::ScheduleManager::setWeekdaySchedule);

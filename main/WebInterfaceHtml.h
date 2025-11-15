@@ -205,6 +205,27 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         align-items: center;
         gap: 0.5rem;
       }
+      .schedule-ignore-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0.5rem 0;
+      }
+      .schedule-ignore-controls label {
+        margin: 0;
+        font-weight: 600;
+      }
+      .schedule-ignore-controls select,
+      .schedule-ignore-controls button {
+        width: auto;
+      }
+      .schedule-ignore-status {
+        font-size: 0.9rem;
+        color: #374151;
+        min-height: 1.25rem;
+        margin: 0.25rem 0 0;
+      }
       .header-meta {
         display: flex;
         flex-direction: column;
@@ -237,6 +258,8 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <div>Compressor Off Timeout: <span id="compressorOffTimeout">-</span></div>
         <div>Cooldown Active: <span id="compressorCooldown">-</span></div>
         <div>Cooldown Remaining: <span id="compressorCooldownRemaining">-</span></div>
+        <div>Scheduling: <span id="schedulingState">-</span></div>
+        <div>Schedule Hold: <span id="scheduleHoldState">-</span></div>
         <div>Target: <span id="target">-</span>°C</div>
         <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
         <div>Compressor Temp Limit: <span id="compressorTempLimit">-</span>°C</div>
@@ -338,6 +361,28 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         <label for="weekdayInput">
           Weekday Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
         </label>
+        <div class="schedule-ignore-controls" id="scheduleIgnoreControls">
+          <label for="scheduleIgnoreSelect">Ignore schedule for</label>
+          <select id="scheduleIgnoreSelect">
+            <option value="10">10 minutes</option>
+            <option value="20">20 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="40">40 minutes</option>
+            <option value="50">50 minutes</option>
+            <option value="60">60 minutes</option>
+            <option value="70">70 minutes</option>
+            <option value="80">80 minutes</option>
+            <option value="90">90 minutes</option>
+            <option value="100">100 minutes</option>
+            <option value="110">110 minutes</option>
+            <option value="120" selected>120 minutes</option>
+          </select>
+          <button type="button" id="scheduleIgnoreButton">Apply hold</button>
+        </div>
+        <p class="muted">
+          Temporarily hold the automatic schedule to keep manual adjustments for a short time.
+        </p>
+        <p id="scheduleIgnoreMessage" class="schedule-ignore-status"></p>
         <textarea
           id="weekdayInput"
           name="weekday"
@@ -446,6 +491,15 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       const powerSummaryTotal = document.getElementById('powerSummaryTotal');
       const powerSummaryAverage = document.getElementById('powerSummaryAverage');
       const powerRangeMessage = document.getElementById('powerRangeMessage');
+      const scheduleHoldStateElement = document.getElementById('scheduleHoldState');
+      const schedulingStateElement = document.getElementById('schedulingState');
+      const scheduleIgnoreSelect = document.getElementById('scheduleIgnoreSelect');
+      const scheduleIgnoreButton = document.getElementById('scheduleIgnoreButton');
+      const scheduleIgnoreMessage = document.getElementById('scheduleIgnoreMessage');
+      if (scheduleIgnoreButton) {
+        scheduleIgnoreButton.dataset.busy = 'false';
+      }
+      let latestSchedulingEnabled = false;
       const currentPowerWindowMs = 30 * 60 * 1000;
       const powerRangeDurations = {
         current: currentPowerWindowMs,
@@ -2020,6 +2074,19 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           data.compressorCooldown ? 'Active' : 'Idle';
         document.getElementById('compressorCooldownRemaining').textContent =
           formatCompressorTimeout(data.compressorCooldownRemaining);
+        if (schedulingStateElement) {
+          schedulingStateElement.textContent = data.scheduling ? 'Enabled' : 'Disabled';
+        }
+        if (scheduleHoldStateElement) {
+          const remainingSeconds = Number(data.scheduleIgnoreRemainingSeconds);
+          const remainingMs = Number.isFinite(remainingSeconds) ? remainingSeconds * 1000 : 0;
+          if (data.scheduleIgnoreActive && remainingMs > 0) {
+            scheduleHoldStateElement.textContent = `${describeDuration(remainingMs)} remaining`;
+          } else {
+            scheduleHoldStateElement.textContent = 'Inactive';
+          }
+        }
+        updateScheduleIgnoreInteractivity(Boolean(data.scheduling));
         document.getElementById('target').textContent = toFixedOrDash(data.target);
         document.getElementById('hysteresis').textContent = toFixedOrDash(data.hysteresis);
         document.getElementById('compressorTempLimit').textContent = toFixedOrDash(
@@ -2124,13 +2191,94 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         }
       }
 
-      configForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
+      function setScheduleIgnoreBusy(isBusy) {
+        if (!scheduleIgnoreButton) {
+          return;
+        }
+        scheduleIgnoreButton.dataset.busy = isBusy ? 'true' : 'false';
+        updateScheduleIgnoreInteractivity();
+      }
+
+      function updateScheduleIgnoreInteractivity(schedulingEnabledValue) {
+        if (typeof schedulingEnabledValue === 'boolean') {
+          latestSchedulingEnabled = schedulingEnabledValue;
+        }
+        if (!scheduleIgnoreButton) {
+          return;
+        }
+        const busy = scheduleIgnoreButton.dataset.busy === 'true';
+        const disableControls = busy || !latestSchedulingEnabled;
+        scheduleIgnoreButton.disabled = disableControls;
+        if (scheduleIgnoreSelect) {
+          scheduleIgnoreSelect.disabled = disableControls;
+        }
+      }
+
+      function buildConfigPayload(extraParams = null) {
         const formData = new FormData(configForm);
         if (!configForm.scheduling.checked) {
           formData.set('scheduling', 'false');
         }
         const payload = new URLSearchParams(formData);
+        if (extraParams && typeof extraParams === 'object') {
+          Object.entries(extraParams).forEach(([key, value]) => {
+            if (typeof value !== 'undefined' && value !== null) {
+              payload.set(key, String(value));
+            }
+          });
+        }
+        return payload;
+      }
+
+      async function sendScheduleIgnoreRequest(minutes) {
+        const payload = buildConfigPayload({ scheduleIgnoreMinutes: minutes });
+        const response = await fetch('/api/config', {
+          method: 'POST',
+          body: payload,
+        });
+        if (!response.ok) {
+          throw new Error('Failed to update schedule hold');
+        }
+      }
+
+      if (scheduleIgnoreButton && scheduleIgnoreSelect) {
+        scheduleIgnoreButton.addEventListener('click', async () => {
+          const minutes = Number(scheduleIgnoreSelect.value);
+          if (!Number.isFinite(minutes) || minutes <= 0) {
+            if (scheduleIgnoreMessage) {
+              scheduleIgnoreMessage.textContent = 'Select a duration to ignore the schedule.';
+              scheduleIgnoreMessage.style.color = '#b00020';
+            }
+            return;
+          }
+          setScheduleIgnoreBusy(true);
+          if (scheduleIgnoreMessage) {
+            scheduleIgnoreMessage.textContent = 'Applying hold…';
+            scheduleIgnoreMessage.style.color = '#333';
+          }
+          try {
+            await sendScheduleIgnoreRequest(minutes);
+            if (scheduleIgnoreMessage) {
+              scheduleIgnoreMessage.textContent = `Ignoring schedule for ${minutes} minutes.`;
+              scheduleIgnoreMessage.style.color = '#006400';
+            }
+            await refreshState();
+          } catch (err) {
+            if (scheduleIgnoreMessage) {
+              scheduleIgnoreMessage.textContent =
+                err?.message || 'Failed to update schedule hold.';
+              scheduleIgnoreMessage.style.color = '#b00020';
+            }
+          } finally {
+            setScheduleIgnoreBusy(false);
+          }
+        });
+      }
+      updateScheduleIgnoreInteractivity(false);
+
+      configForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const payload = buildConfigPayload();
         configStatus.textContent = 'Saving…';
         configStatus.style.color = '#333';
         try {

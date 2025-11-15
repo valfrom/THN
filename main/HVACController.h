@@ -40,6 +40,10 @@ class HVACController {
 
   void enableScheduling(bool enabled);
   bool schedulingEnabled() const { return schedulingEnabled_; }
+  void ignoreScheduleForMinutes(uint16_t minutes);
+  bool scheduleIgnoreActive() const;
+  unsigned long scheduleIgnoreRemainingMs() const;
+  bool scheduleUpdatesAllowed() const;
 
   void setFanMode(FanMode mode);
   FanMode fanMode() const { return fanMode_; }
@@ -105,6 +109,7 @@ class HVACController {
   FanMode fanMode_ = FanMode::kAuto;
   SystemMode systemMode_ = SystemMode::kCooling;
   bool schedulingEnabled_ = false;
+  unsigned long scheduleIgnoreUntilMs_ = 0;
 
   unsigned long lastControlUpdate_ = 0;
   unsigned long heatingFanLowDelayMs_ = 5UL * 60UL * 1000UL;
