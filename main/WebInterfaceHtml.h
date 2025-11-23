@@ -61,6 +61,162 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         background: #aac6eb;
         cursor: not-allowed;
       }
+      .tab-bar {
+        display: inline-flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        background: #e7edf3;
+        padding: 0.35rem;
+        border-radius: 999px;
+      }
+      .tab-button {
+        padding: 0.5rem 1rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: #1f2937;
+        font-weight: 600;
+      }
+      .tab-button.active {
+        background: #fff;
+        border-color: #c4d1df;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      }
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
+      .simple-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .simple-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .power-toggle {
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+        margin: 0 auto;
+        font-size: 1.15rem;
+        font-weight: 700;
+        border: none;
+        color: #fff;
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+      .power-toggle.is-off {
+        background: #9ca3af;
+      }
+      .power-toggle.mode-cooling {
+        background: #3f8efc;
+      }
+      .power-toggle.mode-heating {
+        background: #ef4444;
+      }
+      .power-toggle.mode-fan {
+        background: #0ea5e9;
+      }
+      .power-toggle:active {
+        transform: scale(0.98);
+      }
+      .mode-buttons,
+      .fan-bars,
+      .temp-controls,
+      .schedule-toggle {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+        align-items: center;
+      }
+      .fan-bars {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .mode-button,
+      .fan-bar {
+        border-radius: 12px;
+        padding: 0.65rem 0.5rem;
+        background: #eef2f7;
+        color: #111827;
+        border: 1px solid transparent;
+        display: inline-flex;
+        gap: 0.35rem;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+      }
+      .mode-button.active,
+      .fan-bar.active {
+        background: #dbeafe;
+        border-color: #2563eb;
+        color: #0f172a;
+      }
+      .mode-button .icon,
+      .fan-bar .icon {
+        font-size: 1.1rem;
+      }
+      .fan-bar:disabled,
+      .mode-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .temp-controls {
+        grid-template-columns: 64px 1fr 64px;
+      }
+      .temp-display {
+        text-align: center;
+        font-size: 1.4rem;
+        font-weight: 700;
+      }
+      .pill-button {
+        border-radius: 12px;
+        padding: 0.55rem 0.75rem;
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        font-weight: 700;
+        color: #0f172a;
+      }
+      .pill-button:active {
+        transform: scale(0.98);
+      }
+      .schedule-toggle {
+        grid-template-columns: auto 1fr;
+        gap: 0.75rem;
+      }
+      .schedule-label {
+        font-weight: 700;
+        color: #111827;
+      }
+      .schedule-button {
+        border-radius: 999px;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        padding: 0.35rem 0.75rem;
+        text-align: left;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        width: 120px;
+      }
+      .schedule-button.active {
+        background: #d1fae5;
+        border-color: #059669;
+        color: #065f46;
+      }
+      .simple-status {
+        font-size: 0.95rem;
+        color: #374151;
+        min-height: 1.2rem;
+      }
       .chart-card-header {
         display: flex;
         flex-wrap: wrap;
@@ -248,208 +404,268 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       </div>
     </header>
 
-    <section id="statusSection">
-      <h2>Current Status</h2>
-      <div class="status">
-        <div>Mode: <span id="systemMode">-</span></div>
-        <div>Fan: <span id="fanMode">-</span> (<span id="fanSpeed">-</span>)</div>
-        <div>Compressor: <span id="compressor">-</span></div>
-        <div>Compressor Timeout: <span id="compressorTimeout">-</span></div>
-        <div>Compressor Off Timeout: <span id="compressorOffTimeout">-</span></div>
-        <div>Cooldown Active: <span id="compressorCooldown">-</span></div>
-        <div>Cooldown Remaining: <span id="compressorCooldownRemaining">-</span></div>
-        <div>Scheduling: <span id="schedulingState">-</span></div>
-        <div>Schedule Hold: <span id="scheduleHoldState">-</span></div>
-        <div>Target: <span id="target">-</span>°C</div>
-        <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
-        <div>Compressor Temp Limit: <span id="compressorTempLimit">-</span>°C</div>
-        <div>Compressor Min Ambient: <span id="compressorMinAmbient">-</span>°C</div>
-        <div>Cooldown Temp: <span id="compressorCooldownTemp">-</span>°C</div>
-        <div>Cooldown Duration: <span id="compressorCooldownMinutes">-</span> min</div>
-        <div>Ambient: <span id="ambient">-</span>°C</div>
-        <div>Coil: <span id="coil">-</span>°C</div>
-        <div>Energy: <span id="energy">-</span> Wh</div>
-      </div>
-    </section>
+    <div class="tab-bar">
+      <button class="tab-button active" data-tab="simple">Simple</button>
+      <button class="tab-button" data-tab="advanced">Advanced</button>
+    </div>
 
-    <section>
-      <h2>Configuration</h2>
-      <form id="configForm">
+    <div id="simpleTab" class="tab-panel active">
+      <div class="simple-card">
+        <div class="simple-row">
+          <button id="simplePowerButton" class="power-toggle is-off" type="button">OFF</button>
+        </div>
+        <div class="simple-row mode-buttons">
+          <button class="mode-button" data-mode="fan" type="button">
+            <span class="icon" aria-hidden="true">🌀</span>
+            Fan
+          </button>
+          <button class="mode-button" data-mode="heating" type="button">
+            <span class="icon" aria-hidden="true">🔥</span>
+            Heating
+          </button>
+          <button class="mode-button" data-mode="cooling" type="button">
+            <span class="icon" aria-hidden="true">❄️</span>
+            Cooling
+          </button>
+        </div>
+        <div class="simple-row fan-bars">
+          <button class="fan-bar" data-fan="off" type="button">
+            <span class="icon" aria-hidden="true">▁</span>
+            Off
+          </button>
+          <button class="fan-bar" data-fan="low" type="button">
+            <span class="icon" aria-hidden="true">▂</span>
+            Low
+          </button>
+          <button class="fan-bar" data-fan="medium" type="button">
+            <span class="icon" aria-hidden="true">▃</span>
+            Medium
+          </button>
+          <button class="fan-bar" data-fan="high" type="button">
+            <span class="icon" aria-hidden="true">▄</span>
+            High
+          </button>
+        </div>
+        <div class="simple-row temp-controls">
+          <button id="tempDownButton" class="pill-button" type="button">-</button>
+          <div class="temp-display"><span id="tempDisplay">-</span> °C</div>
+          <button id="tempUpButton" class="pill-button" type="button">+</button>
+        </div>
+        <div class="simple-row schedule-toggle">
+          <div class="schedule-label">Schedule</div>
+          <button id="scheduleToggleButton" class="schedule-button" type="button">
+            <span class="icon" aria-hidden="true">⏰</span>
+            <span id="scheduleToggleText">Off</span>
+          </button>
+        </div>
+        <p id="simpleStatus" class="simple-status"></p>
+      </div>
+    </div>
+
+    <div id="advancedTab" class="tab-panel">
+      <section id="statusSection">
+        <h2>Current Status</h2>
+        <div class="status">
+          <div>Mode: <span id="systemMode">-</span></div>
+          <div>Fan: <span id="fanMode">-</span> (<span id="fanSpeed">-</span>)</div>
+          <div>Compressor: <span id="compressor">-</span></div>
+          <div>Compressor Timeout: <span id="compressorTimeout">-</span></div>
+          <div>Compressor Off Timeout: <span id="compressorOffTimeout">-</span></div>
+          <div>Cooldown Active: <span id="compressorCooldown">-</span></div>
+          <div>Cooldown Remaining: <span id="compressorCooldownRemaining">-</span></div>
+          <div>Scheduling: <span id="schedulingState">-</span></div>
+          <div>Schedule Hold: <span id="scheduleHoldState">-</span></div>
+          <div>Target: <span id="target">-</span>°C</div>
+          <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
+          <div>Compressor Temp Limit: <span id="compressorTempLimit">-</span>°C</div>
+          <div>Compressor Min Ambient: <span id="compressorMinAmbient">-</span>°C</div>
+          <div>Cooldown Temp: <span id="compressorCooldownTemp">-</span>°C</div>
+          <div>Cooldown Duration: <span id="compressorCooldownMinutes">-</span> min</div>
+          <div>Ambient: <span id="ambient">-</span>°C</div>
+          <div>Coil: <span id="coil">-</span>°C</div>
+          <div>Energy: <span id="energy">-</span> Wh</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Configuration</h2>
+        <form id="configForm">
+          <div class="grid">
+            <div>
+              <label for="targetInput">Target Temperature (°C)</label>
+              <input id="targetInput" name="target" type="number" step="0.1" />
+            </div>
+            <div>
+              <label for="hysteresisInput">Hysteresis (°C)</label>
+              <input id="hysteresisInput" name="hysteresis" type="number" step="0.1" />
+            </div>
+            <div>
+              <label for="compressorTempLimitInput">Compressor Temp Limit (°C)</label>
+              <input
+                id="compressorTempLimitInput"
+                name="compressorTempLimit"
+                type="number"
+                step="0.1"
+                min="0"
+              />
+            </div>
+            <div>
+              <label for="compressorMinAmbientInput">Compressor Min Ambient (°C)</label>
+              <input
+                id="compressorMinAmbientInput"
+                name="compressorMinAmbient"
+                type="number"
+                step="0.1"
+              />
+            </div>
+            <div>
+              <label for="compressorCooldownTempInput">Compressor Cooldown Temp (°C)</label>
+              <input
+                id="compressorCooldownTempInput"
+                name="compressorCooldownTemp"
+                type="number"
+                step="0.1"
+                min="0"
+              />
+            </div>
+            <div>
+              <label for="compressorCooldownMinutesInput">Compressor Cooldown Duration (minutes)</label>
+              <input
+                id="compressorCooldownMinutesInput"
+                name="compressorCooldownMinutes"
+                type="number"
+                step="0.1"
+                min="0"
+              />
+            </div>
+            <div>
+              <label for="fanModeInput">Fan Mode</label>
+              <select id="fanModeInput" name="fanMode">
+                <option value="auto">Automatic</option>
+                <option value="off">Off</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div>
+              <label for="systemModeInput">System Mode</label>
+              <select id="systemModeInput" name="systemMode">
+                <option value="cooling">Cooling</option>
+                <option value="heating">Heating</option>
+                <option value="fan">Fan Only</option>
+                <option value="idle">Idle</option>
+              </select>
+            </div>
+            <div>
+              <label for="timezoneOffsetInput">Timezone Offset (hours from UTC)</label>
+              <input
+                id="timezoneOffsetInput"
+                name="timezoneOffset"
+                type="number"
+                step="0.25"
+                min="-12"
+                max="14"
+              />
+            </div>
+          </div>
+          <label class="inline">
+            <input id="schedulingInput" name="scheduling" type="checkbox" value="true" />
+            Enable scheduling
+          </label>
+          <label for="weekdayInput">
+            Weekday Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
+          </label>
+          <div class="schedule-ignore-controls" id="scheduleIgnoreControls">
+            <label for="scheduleIgnoreSelect">Ignore schedule for</label>
+            <select id="scheduleIgnoreSelect">
+              <option value="10">10 minutes</option>
+              <option value="20">20 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="40">40 minutes</option>
+              <option value="50">50 minutes</option>
+              <option value="60">60 minutes</option>
+              <option value="70">70 minutes</option>
+              <option value="80">80 minutes</option>
+              <option value="90">90 minutes</option>
+              <option value="100">100 minutes</option>
+              <option value="110">110 minutes</option>
+              <option value="120" selected>120 minutes</option>
+            </select>
+            <button type="button" id="scheduleIgnoreButton">Apply hold</button>
+          </div>
+          <p class="muted">
+            Temporarily hold the automatic schedule to keep manual adjustments for a short time.
+          </p>
+          <p id="scheduleIgnoreMessage" class="schedule-ignore-status"></p>
+          <textarea
+            id="weekdayInput"
+            name="weekday"
+            rows="3"
+            placeholder="06:00=23.0|cooling;09:00=26.0|cooling;17:30=23.5|cooling;22:00=25.0|idle"
+          ></textarea>
+          <label for="weekendInput">
+            Weekend Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
+          </label>
+          <textarea
+            id="weekendInput"
+            name="weekend"
+            rows="3"
+            placeholder="08:00=23.5|cooling;12:00=25.0|cooling;18:00=23.0|cooling;23:00=25.5|idle"
+          ></textarea>
+          <button type="submit">Save Configuration</button>
+          <p id="configStatus"></p>
+        </form>
+      </section>
+
+      <section>
+        <h2>Logs</h2>
         <div class="grid">
-          <div>
-            <label for="targetInput">Target Temperature (°C)</label>
-            <input id="targetInput" name="target" type="number" step="0.1" />
+          <div class="chart-card">
+            <h3>Temperature (°C)</h3>
+            <canvas id="temperatureChart" class="chart" width="720" height="320"></canvas>
           </div>
-          <div>
-            <label for="hysteresisInput">Hysteresis (°C)</label>
-            <input id="hysteresisInput" name="hysteresis" type="number" step="0.1" />
-          </div>
-          <div>
-            <label for="compressorTempLimitInput">Compressor Temp Limit (°C)</label>
-            <input
-              id="compressorTempLimitInput"
-              name="compressorTempLimit"
-              type="number"
-              step="0.1"
-              min="0"
-            />
-          </div>
-          <div>
-            <label for="compressorMinAmbientInput">Compressor Min Ambient (°C)</label>
-            <input
-              id="compressorMinAmbientInput"
-              name="compressorMinAmbient"
-              type="number"
-              step="0.1"
-            />
-          </div>
-          <div>
-            <label for="compressorCooldownTempInput">Compressor Cooldown Temp (°C)</label>
-            <input
-              id="compressorCooldownTempInput"
-              name="compressorCooldownTemp"
-              type="number"
-              step="0.1"
-              min="0"
-            />
-          </div>
-          <div>
-            <label for="compressorCooldownMinutesInput">Compressor Cooldown Duration (minutes)</label>
-            <input
-              id="compressorCooldownMinutesInput"
-              name="compressorCooldownMinutes"
-              type="number"
-              step="0.1"
-              min="0"
-            />
-          </div>
-          <div>
-            <label for="fanModeInput">Fan Mode</label>
-            <select id="fanModeInput" name="fanMode">
-              <option value="auto">Automatic</option>
-              <option value="off">Off</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          <div>
-            <label for="systemModeInput">System Mode</label>
-            <select id="systemModeInput" name="systemMode">
-              <option value="cooling">Cooling</option>
-              <option value="heating">Heating</option>
-              <option value="fan">Fan Only</option>
-              <option value="idle">Idle</option>
-            </select>
-          </div>
-          <div>
-            <label for="timezoneOffsetInput">Timezone Offset (hours from UTC)</label>
-            <input
-              id="timezoneOffsetInput"
-              name="timezoneOffset"
-              type="number"
-              step="0.25"
-              min="-12"
-              max="14"
-            />
-          </div>
-        </div>
-        <label class="inline">
-          <input id="schedulingInput" name="scheduling" type="checkbox" value="true" />
-          Enable scheduling
-        </label>
-        <label for="weekdayInput">
-          Weekday Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
-        </label>
-        <div class="schedule-ignore-controls" id="scheduleIgnoreControls">
-          <label for="scheduleIgnoreSelect">Ignore schedule for</label>
-          <select id="scheduleIgnoreSelect">
-            <option value="10">10 minutes</option>
-            <option value="20">20 minutes</option>
-            <option value="30">30 minutes</option>
-            <option value="40">40 minutes</option>
-            <option value="50">50 minutes</option>
-            <option value="60">60 minutes</option>
-            <option value="70">70 minutes</option>
-            <option value="80">80 minutes</option>
-            <option value="90">90 minutes</option>
-            <option value="100">100 minutes</option>
-            <option value="110">110 minutes</option>
-            <option value="120" selected>120 minutes</option>
-          </select>
-          <button type="button" id="scheduleIgnoreButton">Apply hold</button>
-        </div>
-        <p class="muted">
-          Temporarily hold the automatic schedule to keep manual adjustments for a short time.
-        </p>
-        <p id="scheduleIgnoreMessage" class="schedule-ignore-status"></p>
-        <textarea
-          id="weekdayInput"
-          name="weekday"
-          rows="3"
-          placeholder="06:00=23.0|cooling;09:00=26.0|cooling;17:30=23.5|cooling;22:00=25.0|idle"
-        ></textarea>
-        <label for="weekendInput">
-          Weekend Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
-        </label>
-        <textarea
-          id="weekendInput"
-          name="weekend"
-          rows="3"
-          placeholder="08:00=23.5|cooling;12:00=25.0|cooling;18:00=23.0|cooling;23:00=25.5|idle"
-        ></textarea>
-        <button type="submit">Save Configuration</button>
-        <p id="configStatus"></p>
-      </form>
-    </section>
-
-    <section>
-      <h2>Logs</h2>
-      <div class="grid">
-        <div class="chart-card">
-          <h3>Temperature (°C)</h3>
-          <canvas id="temperatureChart" class="chart" width="720" height="320"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-card-header">
-            <h3>Power (W)</h3>
-            <div class="power-controls">
-              <span class="power-controls-label">Range</span>
-              <div class="power-range-buttons">
-                <button type="button" class="range-button active" data-power-range="current">
-                  Current
-                </button>
-                <button type="button" class="range-button" data-power-range="day">
-                  Past day
-                </button>
-                <button type="button" class="range-button" data-power-range="week">
-                  Past week
-                </button>
-                <button type="button" class="range-button" data-power-range="month">
-                  Past month
-                </button>
-                <button type="button" class="range-button" data-power-range="year">
-                  Past year
-                </button>
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3>Power (W)</h3>
+              <div class="power-controls">
+                <span class="power-controls-label">Range</span>
+                <div class="power-range-buttons">
+                  <button type="button" class="range-button active" data-power-range="current">
+                    Current
+                  </button>
+                  <button type="button" class="range-button" data-power-range="day">
+                    Past day
+                  </button>
+                  <button type="button" class="range-button" data-power-range="week">
+                    Past week
+                  </button>
+                  <button type="button" class="range-button" data-power-range="month">
+                    Past month
+                  </button>
+                  <button type="button" class="range-button" data-power-range="year">
+                    Past year
+                  </button>
+                </div>
+                <button type="button" id="resetPowerLogButton" class="danger-button">Reset power log</button>
               </div>
-              <button type="button" id="resetPowerLogButton" class="danger-button">Reset power log</button>
             </div>
+            <div class="power-summary">
+              <div class="summary-card">
+                <div class="summary-label">Total usage</div>
+                <div class="summary-value" id="powerSummaryTotal">-</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Average per day</div>
+                <div class="summary-value" id="powerSummaryAverage">-</div>
+              </div>
+            </div>
+            <p id="powerRangeMessage" class="muted power-notice">Loading power history…</p>
+            <canvas id="powerChart" class="chart" width="720" height="320"></canvas>
           </div>
-          <div class="power-summary">
-            <div class="summary-card">
-              <div class="summary-label">Total usage</div>
-              <div class="summary-value" id="powerSummaryTotal">-</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-label">Average per day</div>
-              <div class="summary-value" id="powerSummaryAverage">-</div>
-            </div>
-          </div>
-          <p id="powerRangeMessage" class="muted power-notice">Loading power history…</p>
-          <canvas id="powerChart" class="chart" width="720" height="320"></canvas>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
 
     <script>
       const configForm = document.getElementById('configForm');
@@ -496,6 +712,19 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       const scheduleIgnoreSelect = document.getElementById('scheduleIgnoreSelect');
       const scheduleIgnoreButton = document.getElementById('scheduleIgnoreButton');
       const scheduleIgnoreMessage = document.getElementById('scheduleIgnoreMessage');
+      const tabButtons = Array.from(document.querySelectorAll('.tab-button'));
+      const tabPanels = Array.from(document.querySelectorAll('.tab-panel'));
+      const simplePowerButton = document.getElementById('simplePowerButton');
+      const simpleModeButtons = Array.from(document.querySelectorAll('.mode-button[data-mode]'));
+      const simpleFanButtons = Array.from(document.querySelectorAll('.fan-bar[data-fan]'));
+      const tempUpButton = document.getElementById('tempUpButton');
+      const tempDownButton = document.getElementById('tempDownButton');
+      const tempDisplay = document.getElementById('tempDisplay');
+      const scheduleToggleButton = document.getElementById('scheduleToggleButton');
+      const scheduleToggleText = document.getElementById('scheduleToggleText');
+      const simpleStatus = document.getElementById('simpleStatus');
+      let latestState = null;
+      let simpleDesiredMode = 'cooling';
       if (scheduleIgnoreButton) {
         scheduleIgnoreButton.dataset.busy = 'false';
       }
@@ -530,6 +759,148 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             return `${time}=${temp}${mode}`;
           })
           .join(';');
+      }
+
+      function activateTab(tabName) {
+        tabButtons.forEach((button) => {
+          const isActive = button.dataset.tab === tabName;
+          button.classList.toggle('active', isActive);
+        });
+        tabPanels.forEach((panel) => {
+          const isActive = panel.id.toLowerCase().startsWith(tabName.toLowerCase());
+          panel.classList.toggle('active', isActive);
+        });
+      }
+
+      function setSimpleStatus(message, color) {
+        if (!simpleStatus) {
+          return;
+        }
+        simpleStatus.textContent = message || '';
+        if (color) {
+          simpleStatus.style.color = color;
+        }
+      }
+
+      function updateSimplePowerButton(powerOn, mode) {
+        if (!simplePowerButton) {
+          return;
+        }
+        simplePowerButton.dataset.state = powerOn ? 'on' : 'off';
+        simplePowerButton.textContent = powerOn ? 'ON' : 'OFF';
+        simplePowerButton.classList.remove('is-off', 'mode-cooling', 'mode-heating', 'mode-fan');
+        if (powerOn) {
+          const className = mode ? `mode-${mode}` : 'mode-cooling';
+          simplePowerButton.classList.add(className);
+        } else {
+          simplePowerButton.classList.add('is-off');
+        }
+      }
+
+      function updateSimpleModeButtons(mode) {
+        simpleModeButtons.forEach((button) => {
+          button.classList.toggle('active', button.dataset.mode === mode);
+        });
+      }
+
+      function updateFanControls(fanMode, selectedMode) {
+        simpleFanButtons.forEach((button) => {
+          const mode = button.dataset.fan;
+          const isActive = mode === fanMode;
+          const disableOffControl = mode === 'off' && selectedMode !== 'fan';
+          button.disabled = Boolean(disableOffControl);
+          button.classList.toggle('active', isActive);
+        });
+      }
+
+      function updateTempDisplay(value) {
+        if (!tempDisplay) {
+          return;
+        }
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          tempDisplay.textContent = value.toFixed(1);
+        } else {
+          tempDisplay.textContent = '-';
+        }
+      }
+
+      function updateScheduleToggle(enabled) {
+        if (!scheduleToggleButton || !scheduleToggleText) {
+          return;
+        }
+        const isActive = Boolean(enabled);
+        scheduleToggleButton.classList.toggle('active', isActive);
+        scheduleToggleButton.dataset.state = isActive ? 'on' : 'off';
+        scheduleToggleButton.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        scheduleToggleText.textContent = isActive ? 'On' : 'Off';
+      }
+
+      function updateSimplifiedInterface(data) {
+        if (!data) {
+          return;
+        }
+        const powerOn = data.systemMode && data.systemMode !== 'idle';
+        if (powerOn && typeof data.systemMode === 'string') {
+          simpleDesiredMode = data.systemMode;
+        }
+        updateSimplePowerButton(powerOn, simpleDesiredMode);
+        updateSimpleModeButtons(simpleDesiredMode);
+        updateFanControls(data.fanMode, simpleDesiredMode);
+        const targetValue = Number(data.target);
+        updateTempDisplay(Number.isFinite(targetValue) ? targetValue : null);
+        updateScheduleToggle(data.scheduling);
+      }
+
+      function setFormValue(name, value) {
+        if (!configForm || !name) {
+          return;
+        }
+        const element = configForm.elements[name];
+        if (!element) {
+          return;
+        }
+        if (element.type === 'checkbox') {
+          element.checked = value === true || value === 'true' || value === '1';
+        } else {
+          element.value = value;
+        }
+      }
+
+      async function quickSaveConfig(updates, options = {}) {
+        const { disableSchedule = false } = options;
+        if (disableSchedule) {
+          updates = { ...updates, scheduling: 'false' };
+        }
+        Object.entries(updates || {}).forEach(([key, value]) => {
+          setFormValue(key, value);
+        });
+        if (disableSchedule) {
+          setFormValue('scheduling', false);
+        }
+        const payload = buildConfigPayload();
+        Object.entries(updates || {}).forEach(([key, value]) => {
+          if (typeof value !== 'undefined' && value !== null) {
+            payload.set(key, String(value));
+          }
+        });
+        setSimpleStatus('Saving…', '#374151');
+        try {
+          const response = await fetch('/api/config', { method: 'POST', body: payload });
+          if (!response.ok) {
+            throw new Error('Failed to save changes');
+          }
+          setSimpleStatus('Saved.', '#0b6b0b');
+          await refreshState({ updateForm: true });
+        } catch (err) {
+          setSimpleStatus(err?.message || 'Failed to save.', '#b00020');
+        }
+      }
+
+      function changeTargetTemperature(delta) {
+        const current = latestState && Number(latestState.target);
+        const base = Number.isFinite(current) ? current : 0;
+        const next = Math.round((base + delta) * 2) / 2;
+        quickSaveConfig({ target: next.toFixed(1) }, { disableSchedule: true });
       }
 
       function renderLineChart(canvas, series, options = {}) {
@@ -2025,6 +2396,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       }
 
       function updateStatusBar(data) {
+        latestState = data;
         const wifiInfo = document.getElementById('wifiInfo');
         wifiInfo.textContent = data.ssid && data.ip ? `${data.ssid} @ ${data.ip}` : '-';
 
@@ -2109,6 +2481,7 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         if (uptimeElement) {
           uptimeElement.textContent = formatUptimeSeconds(data.uptimeSeconds);
         }
+        updateSimplifiedInterface(data);
       }
 
       function updateConfigForm(data) {
@@ -2239,6 +2612,66 @@ static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         if (!response.ok) {
           throw new Error('Failed to update schedule hold');
         }
+      }
+
+      tabButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const tabName = button.dataset.tab || 'simple';
+          activateTab(tabName);
+        });
+      });
+      activateTab('simple');
+
+      if (simplePowerButton) {
+        simplePowerButton.addEventListener('click', () => {
+          const isOn = simplePowerButton.dataset.state === 'on';
+          const targetMode = isOn ? 'idle' : simpleDesiredMode || 'cooling';
+          quickSaveConfig({ systemMode: targetMode });
+        });
+      }
+
+      simpleModeButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const mode = button.dataset.mode;
+          if (!mode) {
+            return;
+          }
+          simpleDesiredMode = mode;
+          updateSimpleModeButtons(simpleDesiredMode);
+          updateFanControls(latestState?.fanMode, simpleDesiredMode);
+          if (simplePowerButton && simplePowerButton.dataset.state === 'on') {
+            quickSaveConfig({ systemMode: mode });
+          } else {
+            updateSimplePowerButton(false, simpleDesiredMode);
+          }
+        });
+      });
+
+      simpleFanButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const fanMode = button.dataset.fan;
+          if (!fanMode) {
+            return;
+          }
+          if (fanMode === 'off' && simpleDesiredMode !== 'fan') {
+            return;
+          }
+          quickSaveConfig({ fanMode });
+        });
+      });
+
+      if (tempUpButton) {
+        tempUpButton.addEventListener('click', () => changeTargetTemperature(0.5));
+      }
+      if (tempDownButton) {
+        tempDownButton.addEventListener('click', () => changeTargetTemperature(-0.5));
+      }
+
+      if (scheduleToggleButton) {
+        scheduleToggleButton.addEventListener('click', () => {
+          const nextState = scheduleToggleButton.dataset.state !== 'on';
+          quickSaveConfig({ scheduling: nextState ? 'true' : 'false' });
+        });
       }
 
       if (scheduleIgnoreButton && scheduleIgnoreSelect) {
