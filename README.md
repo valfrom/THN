@@ -90,9 +90,13 @@ main/
   ScheduleManager.[h|cpp]
   TemperatureLog.[h|cpp]
   PowerLog.[h|cpp]
-  WebInterface.[h|cpp]  # HTTP API and inline HTML dashboard (WebInterfaceHtml.h)
+  WebInterface.[h|cpp]  # HTTP API and compressed HTML dashboard (generated WebInterfaceHTML.h)
   WiFiConfig.example.h  # Template Wi-Fi credentials (copy to WiFiConfig.h)
 ```
+
+The dashboard markup now lives in `main/index.html`. Run
+`python main/generate_web_interface_html.py` after editing the HTML to refresh the
+compressed `WebInterfaceHTML.h` served to browsers.
 
 Feel free to expand the system with additional sensors, a heating mode, or persistent settings by
 building on the provided abstractions.

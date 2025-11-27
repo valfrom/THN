@@ -1,5 +1,5 @@
 #include "WebInterface.h"
-#include "WebInterfaceHtml.h"
+#include "WebInterfaceHTML.h"
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -40,7 +40,10 @@ void WebInterface::registerRoutes() {
 }
 
 void WebInterface::serveIndex() {
-  server_.send_P(200, "text/html", kWebInterfaceHtml);
+  server_.sendHeader("Content-Encoding", kWebInterfaceContentEncoding);
+  server_.send_P(200, "text/html",
+                 reinterpret_cast<PGM_P>(kWebInterfaceHtmlCompressed),
+                 kWebInterfaceHtmlCompressedLength);
 }
 
 void WebInterface::handleState() {
