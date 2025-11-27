@@ -1,2376 +1,784 @@
 #pragma once
 
 #include <pgmspace.h>
+#include <stddef.h>
+#include <stdint.h>
 
 namespace interface {
 
-static const char kWebInterfaceHtml[] PROGMEM = R"rawliteral(<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>HVAC Controller</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 0 auto;
-        padding: 1rem;
-        max-width: 960px;
-        background: #f4f7f9;
-        color: #222;
-      }
-      header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-      }
-      h1 {
-        margin: 0;
-      }
-      section {
-        background: #fff;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      }
-      label {
-        display: block;
-        font-weight: bold;
-        margin-top: 0.5rem;
-      }
-      input,
-      select,
-      textarea,
-      button {
-        width: 100%;
-        padding: 0.5rem;
-        margin-top: 0.25rem;
-        box-sizing: border-box;
-        border: 1px solid #ccd6dd;
-        border-radius: 4px;
-      }
-      button {
-        background: #0078d4;
-        color: #fff;
-        border: none;
-        cursor: pointer;
-      }
-      button:disabled {
-        background: #aac6eb;
-        cursor: not-allowed;
-      }
-      .chart-card-header {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.75rem;
-      }
-      .power-controls {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.5rem;
-      }
-      .power-controls-label {
-        font-weight: 600;
-        color: #1f2937;
-      }
-      .power-range-buttons {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-      }
-      .range-button {
-        width: auto;
-        padding: 0.35rem 0.9rem;
-        border-radius: 999px;
-        border: 1px solid #0078d4;
-        background: rgba(0, 120, 212, 0.08);
-        color: #0f3558;
-        font-weight: 600;
-        transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-      }
-      .range-button:hover:not(:disabled) {
-        background: rgba(0, 120, 212, 0.2);
-      }
-      .range-button.active {
-        background: #0078d4;
-        border-color: #0062aa;
-        color: #fff;
-      }
-      .range-button:disabled {
-        background: #e2e8f0;
-        border-color: #cbd5e1;
-        color: #94a3b8;
-      }
-      .danger-button {
-        width: auto;
-        padding: 0.35rem 0.9rem;
-        border-radius: 999px;
-        border: 1px solid #dc2626;
-        background: #dc2626;
-        color: #fff;
-        font-weight: 600;
-        transition: background 0.2s ease, border-color 0.2s ease;
-      }
-      .danger-button:hover:not(:disabled) {
-        background: #b91c1c;
-        border-color: #991b1b;
-      }
-      .danger-button:disabled {
-        background: #fca5a5;
-        border-color: #f87171;
-        color: #7f1d1d;
-        cursor: not-allowed;
-      }
-      .power-summary {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 0.75rem;
-      }
-      .summary-card {
-        background: #f8fafc;
-        border: 1px solid #d8e0e7;
-        border-radius: 8px;
-        padding: 0.75rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-      }
-      .summary-label {
-        font-size: 0.75rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: #64748b;
-      }
-      .summary-value {
-        font-size: 1.35rem;
-        font-weight: 600;
-        color: #0f172a;
-      }
-      .muted {
-        color: #64748b;
-        font-size: 0.9rem;
-      }
-      .power-notice {
-        margin: 0.35rem 0 0;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1rem;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      th,
-      td {
-        border-bottom: 1px solid #e5e8eb;
-        padding: 0.4rem 0.6rem;
-        text-align: left;
-        font-size: 0.9rem;
-      }
-      th {
-        background: #f0f3f5;
-      }
-      .status {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
-      }
-      .status div {
-        min-width: 140px;
-      }
-      .chart-card {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-      }
-      .chart-card canvas {
-        width: 100%;
-        max-width: 100%;
-      }
-      canvas.chart {
-        display: block;
-        background: #fafbfd;
-        border: 1px solid #d8e0e7;
-        border-radius: 6px;
-      }
-      .inline {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-      .schedule-ignore-controls {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.5rem;
-        margin: 0.5rem 0;
-      }
-      .schedule-ignore-controls label {
-        margin: 0;
-        font-weight: 600;
-      }
-      .schedule-ignore-controls select,
-      .schedule-ignore-controls button {
-        width: auto;
-      }
-      .schedule-ignore-status {
-        font-size: 0.9rem;
-        color: #374151;
-        min-height: 1.25rem;
-        margin: 0.25rem 0 0;
-      }
-      .header-meta {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 0.25rem;
-        text-align: right;
-      }
-      .header-meta div {
-        font-size: 0.9rem;
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>HVAC Controller</h1>
-      <div class="header-meta">
-        <div id="wifiInfo"></div>
-        <div>Uptime: <span id="uptime">-</span></div>
-        <div id="currentTime">-</div>
-      </div>
-    </header>
-
-    <section id="statusSection">
-      <h2>Current Status</h2>
-      <div class="status">
-        <div>Mode: <span id="systemMode">-</span></div>
-        <div>Fan: <span id="fanMode">-</span> (<span id="fanSpeed">-</span>)</div>
-        <div>Compressor: <span id="compressor">-</span></div>
-        <div>Compressor Timeout: <span id="compressorTimeout">-</span></div>
-        <div>Compressor Off Timeout: <span id="compressorOffTimeout">-</span></div>
-        <div>Cooldown Active: <span id="compressorCooldown">-</span></div>
-        <div>Cooldown Remaining: <span id="compressorCooldownRemaining">-</span></div>
-        <div>Scheduling: <span id="schedulingState">-</span></div>
-        <div>Schedule Hold: <span id="scheduleHoldState">-</span></div>
-        <div>Target: <span id="target">-</span>°C</div>
-        <div>Hysteresis: <span id="hysteresis">-</span>°C</div>
-        <div>Compressor Temp Limit: <span id="compressorTempLimit">-</span>°C</div>
-        <div>Compressor Min Ambient: <span id="compressorMinAmbient">-</span>°C</div>
-        <div>Cooldown Temp: <span id="compressorCooldownTemp">-</span>°C</div>
-        <div>Cooldown Duration: <span id="compressorCooldownMinutes">-</span> min</div>
-        <div>Ambient: <span id="ambient">-</span>°C</div>
-        <div>Coil: <span id="coil">-</span>°C</div>
-        <div>Energy: <span id="energy">-</span> Wh</div>
-      </div>
-    </section>
-
-    <section>
-      <h2>Configuration</h2>
-      <form id="configForm">
-        <div class="grid">
-          <div>
-            <label for="targetInput">Target Temperature (°C)</label>
-            <input id="targetInput" name="target" type="number" step="0.1" />
-          </div>
-          <div>
-            <label for="hysteresisInput">Hysteresis (°C)</label>
-            <input id="hysteresisInput" name="hysteresis" type="number" step="0.1" />
-          </div>
-          <div>
-            <label for="compressorTempLimitInput">Compressor Temp Limit (°C)</label>
-            <input
-              id="compressorTempLimitInput"
-              name="compressorTempLimit"
-              type="number"
-              step="0.1"
-              min="0"
-            />
-          </div>
-          <div>
-            <label for="compressorMinAmbientInput">Compressor Min Ambient (°C)</label>
-            <input
-              id="compressorMinAmbientInput"
-              name="compressorMinAmbient"
-              type="number"
-              step="0.1"
-            />
-          </div>
-          <div>
-            <label for="compressorCooldownTempInput">Compressor Cooldown Temp (°C)</label>
-            <input
-              id="compressorCooldownTempInput"
-              name="compressorCooldownTemp"
-              type="number"
-              step="0.1"
-              min="0"
-            />
-          </div>
-          <div>
-            <label for="compressorCooldownMinutesInput">Compressor Cooldown Duration (minutes)</label>
-            <input
-              id="compressorCooldownMinutesInput"
-              name="compressorCooldownMinutes"
-              type="number"
-              step="0.1"
-              min="0"
-            />
-          </div>
-          <div>
-            <label for="fanModeInput">Fan Mode</label>
-            <select id="fanModeInput" name="fanMode">
-              <option value="auto">Automatic</option>
-              <option value="off">Off</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          <div>
-            <label for="systemModeInput">System Mode</label>
-            <select id="systemModeInput" name="systemMode">
-              <option value="cooling">Cooling</option>
-              <option value="heating">Heating</option>
-              <option value="fan">Fan Only</option>
-              <option value="idle">Idle</option>
-            </select>
-          </div>
-          <div>
-            <label for="timezoneOffsetInput">Timezone Offset (hours from UTC)</label>
-            <input
-              id="timezoneOffsetInput"
-              name="timezoneOffset"
-              type="number"
-              step="0.25"
-              min="-12"
-              max="14"
-            />
-          </div>
-        </div>
-        <label class="inline">
-          <input id="schedulingInput" name="scheduling" type="checkbox" value="true" />
-          Enable scheduling
-        </label>
-        <label for="weekdayInput">
-          Weekday Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
-        </label>
-        <div class="schedule-ignore-controls" id="scheduleIgnoreControls">
-          <label for="scheduleIgnoreSelect">Ignore schedule for</label>
-          <select id="scheduleIgnoreSelect">
-            <option value="10">10 minutes</option>
-            <option value="20">20 minutes</option>
-            <option value="30">30 minutes</option>
-            <option value="40">40 minutes</option>
-            <option value="50">50 minutes</option>
-            <option value="60">60 minutes</option>
-            <option value="70">70 minutes</option>
-            <option value="80">80 minutes</option>
-            <option value="90">90 minutes</option>
-            <option value="100">100 minutes</option>
-            <option value="110">110 minutes</option>
-            <option value="120" selected>120 minutes</option>
-          </select>
-          <button type="button" id="scheduleIgnoreButton">Apply hold</button>
-        </div>
-        <p class="muted">
-          Temporarily hold the automatic schedule to keep manual adjustments for a short time.
-        </p>
-        <p id="scheduleIgnoreMessage" class="schedule-ignore-status"></p>
-        <textarea
-          id="weekdayInput"
-          name="weekday"
-          rows="3"
-          placeholder="06:00=23.0|cooling;09:00=26.0|cooling;17:30=23.5|cooling;22:00=25.0|idle"
-        ></textarea>
-        <label for="weekendInput">
-          Weekend Schedule (HH:MM=TEMP|mode;… – mode optional, e.g. cooling/idle)
-        </label>
-        <textarea
-          id="weekendInput"
-          name="weekend"
-          rows="3"
-          placeholder="08:00=23.5|cooling;12:00=25.0|cooling;18:00=23.0|cooling;23:00=25.5|idle"
-        ></textarea>
-        <button type="submit">Save Configuration</button>
-        <p id="configStatus"></p>
-      </form>
-    </section>
-
-    <section>
-      <h2>Logs</h2>
-      <div class="grid">
-        <div class="chart-card">
-          <h3>Temperature (°C)</h3>
-          <canvas id="temperatureChart" class="chart" width="720" height="320"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-card-header">
-            <h3>Power (W)</h3>
-            <div class="power-controls">
-              <span class="power-controls-label">Range</span>
-              <div class="power-range-buttons">
-                <button type="button" class="range-button active" data-power-range="current">
-                  Current
-                </button>
-                <button type="button" class="range-button" data-power-range="day">
-                  Past day
-                </button>
-                <button type="button" class="range-button" data-power-range="week">
-                  Past week
-                </button>
-                <button type="button" class="range-button" data-power-range="month">
-                  Past month
-                </button>
-                <button type="button" class="range-button" data-power-range="year">
-                  Past year
-                </button>
-              </div>
-              <button type="button" id="resetPowerLogButton" class="danger-button">Reset power log</button>
-            </div>
-          </div>
-          <div class="power-summary">
-            <div class="summary-card">
-              <div class="summary-label">Total usage</div>
-              <div class="summary-value" id="powerSummaryTotal">-</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-label">Average per day</div>
-              <div class="summary-value" id="powerSummaryAverage">-</div>
-            </div>
-          </div>
-          <p id="powerRangeMessage" class="muted power-notice">Loading power history…</p>
-          <canvas id="powerChart" class="chart" width="720" height="320"></canvas>
-        </div>
-      </div>
-    </section>
-
-    <script>
-      const configForm = document.getElementById('configForm');
-      const configStatus = document.getElementById('configStatus');
-      const timezoneOffsetInput = document.getElementById('timezoneOffsetInput');
-      const detectedTimezoneOffsetHours = -new Date().getTimezoneOffset() / 60;
-      let timezoneOffsetAutoApplied = false;
-      const systemModeLabels = {
-        cooling: 'Cooling',
-        heating: 'Heating',
-        fan: 'Fan Only',
-        idle: 'Idle',
-      };
-      const fanModeLabels = {
-        auto: 'Auto',
-        off: 'Off',
-        low: 'Low',
-        medium: 'Medium',
-        high: 'High',
-      };
-      const fanSpeedLabels = {
-        off: 'Off',
-        low: 'Low',
-        medium: 'Medium',
-        high: 'High',
-      };
-      let currentTimeState = {
-        epochSeconds: null,
-        receivedAtMs: null,
-        formatted: null,
-        uptimeMs: null,
-        uptimeReceivedAtMs: null,
-        clockOffsetMs: null,
-      };
-      const powerRangeButtons = Array.from(
-        document.querySelectorAll('.range-button[data-power-range]'),
-      );
-      const powerResetButton = document.getElementById('resetPowerLogButton');
-      const powerSummaryTotal = document.getElementById('powerSummaryTotal');
-      const powerSummaryAverage = document.getElementById('powerSummaryAverage');
-      const powerRangeMessage = document.getElementById('powerRangeMessage');
-      const scheduleHoldStateElement = document.getElementById('scheduleHoldState');
-      const schedulingStateElement = document.getElementById('schedulingState');
-      const scheduleIgnoreSelect = document.getElementById('scheduleIgnoreSelect');
-      const scheduleIgnoreButton = document.getElementById('scheduleIgnoreButton');
-      const scheduleIgnoreMessage = document.getElementById('scheduleIgnoreMessage');
-      if (scheduleIgnoreButton) {
-        scheduleIgnoreButton.dataset.busy = 'false';
-      }
-      let latestSchedulingEnabled = false;
-      const currentPowerWindowMs = 30 * 60 * 1000;
-      const powerRangeDurations = {
-        current: currentPowerWindowMs,
-        day: 24 * 60 * 60 * 1000,
-        week: 7 * 24 * 60 * 60 * 1000,
-        month: 30 * 24 * 60 * 60 * 1000,
-        year: 365 * 24 * 60 * 60 * 1000,
-      };
-      let selectedPowerRange = 'current';
-      let lastPowerHistoryRefresh = 0;
-      const powerHistoryRefreshIntervalMs = 60 * 1000;
-      let powerHistoryRequest = null;
-
-      async function fetchState() {
-        const response = await fetch('/api/state');
-        if (!response.ok) {
-          throw new Error('Failed to load state');
-        }
-        return await response.json();
-      }
-
-      function scheduleToText(entries) {
-        return entries
-          .map((entry) => {
-            const time = entry.time;
-            const temp = Number(entry.temp).toFixed(1);
-            const mode = typeof entry.mode === 'string' && entry.mode.length > 0 ? `|${entry.mode}` : '';
-            return `${time}=${temp}${mode}`;
-          })
-          .join(';');
-      }
-
-      function renderLineChart(canvas, series, options = {}) {
-        if (!canvas) {
-          return;
-        }
-        const context = canvas.getContext('2d');
-        if (!context) {
-          return;
-        }
-
-        const width = canvas.width;
-        const height = canvas.height;
-        context.clearRect(0, 0, width, height);
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, width, height);
-
-        const processedSeries = series
-          .map((item) => ({
-            label: item.label,
-            color: item.color,
-            data: item.data
-              .map((point) => {
-                const x = Number(point.x);
-                const yValue =
-                  point.y === null || typeof point.y === 'undefined'
-                    ? NaN
-                    : Number(point.y);
-                return {
-                  x,
-                  y: Number.isFinite(yValue) ? yValue : NaN,
-                };
-              })
-              .filter((point) => Number.isFinite(point.x)),
-          }))
-          .filter((item) => item.data.length > 0);
-
-        const drawEmptyState = (message) => {
-          context.fillStyle = '#6b7280';
-          context.font = '14px sans-serif';
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          context.fillText(message, width / 2, height / 2);
-        };
-
-        if (processedSeries.length === 0) {
-          drawEmptyState('No data available');
-          return;
-        }
-
-        const xValues = processedSeries.flatMap((item) => item.data.map((point) => point.x));
-        if (xValues.length === 0) {
-          drawEmptyState('No data available');
-          return;
-        }
-        let xMin = Math.min(...xValues);
-        let xMax = Math.max(...xValues);
-        if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) {
-          drawEmptyState('No data available');
-          return;
-        }
-        if (xMax === xMin) {
-          xMin -= 30000;
-          xMax += 30000;
-        }
-
-        const yValues = processedSeries.flatMap((item) =>
-          item.data.filter((point) => Number.isFinite(point.y)).map((point) => point.y),
-        );
-        if (yValues.length === 0) {
-          drawEmptyState('No data available');
-          return;
-        }
-        let yMin = Math.min(...yValues);
-        let yMax = Math.max(...yValues);
-        if (yMax === yMin) {
-          const padding = yMin === 0 ? 1 : Math.abs(yMin) * 0.1;
-          yMin -= padding;
-          yMax += padding;
-        }
-        const yPadding = (yMax - yMin) * 0.1;
-        if (yPadding > 0) {
-          yMin -= yPadding;
-          yMax += yPadding;
-        }
-
-        const margin = options.margin || { left: 60, right: 18, top: 52, bottom: 42 };
-        const chartWidth = Math.max(1, width - margin.left - margin.right);
-        const chartHeight = Math.max(1, height - margin.top - margin.bottom);
-
-        const xRange = xMax - xMin;
-        const yRange = yMax - yMin;
-        if (xRange <= 0 || yRange <= 0) {
-          drawEmptyState('Waiting for more data');
-          return;
-        }
-
-        const toX = (value) => margin.left + ((value - xMin) / xRange) * chartWidth;
-        const toY = (value) => margin.top + chartHeight - ((value - yMin) / yRange) * chartHeight;
-
-        const xFormatter = typeof options.xFormatter === 'function' ? options.xFormatter : null;
-
-        context.strokeStyle = '#e2e8f0';
-        context.lineWidth = 1;
-        const xTicks = options.xTicks ?? 5;
-        for (let i = 0; i <= xTicks; ++i) {
-          const ratio = i / xTicks;
-          const x = margin.left + ratio * chartWidth;
-          context.beginPath();
-          context.moveTo(x, margin.top);
-          context.lineTo(x, margin.top + chartHeight);
-          context.stroke();
-        }
-        const yTicks = options.yTicks ?? 5;
-        for (let i = 0; i <= yTicks; ++i) {
-          const ratio = i / yTicks;
-          const y = margin.top + chartHeight - ratio * chartHeight;
-          context.beginPath();
-          context.moveTo(margin.left, y);
-          context.lineTo(margin.left + chartWidth, y);
-          context.stroke();
-        }
-
-        context.strokeStyle = '#94a3b8';
-        context.beginPath();
-        context.moveTo(margin.left, margin.top);
-        context.lineTo(margin.left, margin.top + chartHeight);
-        context.lineTo(margin.left + chartWidth, margin.top + chartHeight);
-        context.stroke();
-
-        context.fillStyle = '#475569';
-        context.font = '12px sans-serif';
-        context.textBaseline = 'top';
-        context.textAlign = 'center';
-        for (let i = 0; i <= xTicks; ++i) {
-          const ratio = i / xTicks;
-          const x = margin.left + ratio * chartWidth;
-          let label = '';
-          if (xFormatter) {
-            label = xFormatter({ ratio, range: xRange, min: xMin, max: xMax });
-          } else {
-            const totalMinutes = xRange / 60000;
-            const minuteDecimals =
-              totalMinutes >= 60 ? 0 : totalMinutes >= 10 ? 0 : totalMinutes >= 3 ? 1 : 2;
-            const minutes = (ratio * xRange) / 60000;
-            label = `${minutes.toFixed(minuteDecimals)} min`;
-          }
-          if (typeof label === 'string' && label.length > 0) {
-            context.fillText(label, x, margin.top + chartHeight + 8);
-          }
-        }
-
-        context.textAlign = 'right';
-        context.textBaseline = 'middle';
-        const yDecimals = yRange >= 50 ? 0 : yRange >= 10 ? 1 : 2;
-        for (let i = 0; i <= yTicks; ++i) {
-          const ratio = i / yTicks;
-          const y = margin.top + chartHeight - ratio * chartHeight;
-          const value = yMin + ratio * yRange;
-          const label = value.toFixed(yDecimals);
-          if (options.yUnit) {
-            context.fillText(`${label} ${options.yUnit}`, margin.left - 8, y);
-          } else {
-            context.fillText(label, margin.left - 8, y);
-          }
-        }
-
-        context.textAlign = 'left';
-        context.textBaseline = 'middle';
-        const legendY = Math.max(18, margin.top - 26);
-        const legendSpacing = 132;
-        processedSeries.forEach((item, index) => {
-          const x = margin.left + index * legendSpacing;
-          context.fillStyle = item.color;
-          context.fillRect(x, legendY, 12, 12);
-          context.fillStyle = '#1f2937';
-          context.fillText(item.label, x + 16, legendY + 6);
-        });
-
-        processedSeries.forEach((item) => {
-          context.beginPath();
-          context.strokeStyle = item.color;
-          context.lineWidth = 2;
-          let started = false;
-          const sorted = [...item.data].sort((a, b) => a.x - b.x);
-          sorted.forEach((point) => {
-            if (!Number.isFinite(point.y)) {
-              started = false;
-              return;
-            }
-            const x = toX(point.x);
-            const y = toY(point.y);
-            if (!started) {
-              context.moveTo(x, y);
-              started = true;
-            } else {
-              context.lineTo(x, y);
-            }
-          });
-          context.stroke();
-        });
-      }
-
-      function renderTemperatureChart(canvas, entries) {
-        const prepared = Array.isArray(entries)
-          ? entries
-              .map((entry) => {
-                const time = Number(entry.t);
-                if (!Number.isFinite(time)) {
-                  return null;
-                }
-                const ambientValue =
-                  entry.ambient === null || typeof entry.ambient === 'undefined'
-                    ? NaN
-                    : Number(entry.ambient);
-                const coilValue =
-                  entry.coil === null || typeof entry.coil === 'undefined'
-                    ? NaN
-                    : Number(entry.coil);
-                return {
-                  time,
-                  ambient: Number.isFinite(ambientValue) ? ambientValue : NaN,
-                  coil: Number.isFinite(coilValue) ? coilValue : NaN,
-                };
-              })
-              .filter((entry) => entry !== null)
-          : [];
-
-        renderLineChart(
-          canvas,
-          [
-            {
-              label: 'Ambient',
-              color: '#ef6f6c',
-              data: prepared.map((entry) => ({ x: entry.time, y: entry.ambient })),
-            },
-            {
-              label: 'Coil',
-              color: '#3f8efc',
-              data: prepared.map((entry) => ({ x: entry.time, y: entry.coil })),
-            },
-          ],
-          { yUnit: '°C' },
-        );
-      }
-
-      function renderCurrentPowerChart(canvas, entries) {
-        const summary = {
-          type: 'current',
-          sampleCount: 0,
-          hasData: false,
-          windowStartEpoch: null,
-          windowEndEpoch: null,
-        };
-        if (!canvas) {
-          return summary;
-        }
-        const context = canvas.getContext('2d');
-        if (!context) {
-          return summary;
-        }
-
-        const drawEmptyState = (message) => {
-          context.clearRect(0, 0, canvas.width, canvas.height);
-          context.fillStyle = '#ffffff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.fillStyle = '#6b7280';
-          context.font = '14px sans-serif';
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          context.fillText(message, canvas.width / 2, canvas.height / 2);
-        };
-
-        const prepared = Array.isArray(entries)
-          ? entries
-              .map((entry) => {
-                const uptime = Number(entry?.t);
-                if (!Number.isFinite(uptime)) {
-                  return null;
-                }
-                const wattsValue =
-                  entry.watts === null || typeof entry.watts === 'undefined'
-                    ? NaN
-                    : Number(entry.watts);
-                if (!Number.isFinite(wattsValue)) {
-                  return null;
-                }
-                const epochValue = uptimeToEpochMs(uptime);
-                const axisTime = Number.isFinite(epochValue) ? epochValue : uptime;
-                return {
-                  axisTime,
-                  watts: wattsValue,
-                };
-              })
-              .filter((entry) => entry !== null)
-          : [];
-
-        if (prepared.length === 0) {
-          drawEmptyState('No power samples yet.');
-          return summary;
-        }
-
-        const sorted = [...prepared].sort((a, b) => a.axisTime - b.axisTime);
-        const latestEntry = sorted[sorted.length - 1];
-        const latestTime = latestEntry?.axisTime;
-        if (!Number.isFinite(latestTime)) {
-          drawEmptyState('No recent power samples.');
-          return summary;
-        }
-
-        const earliestTime = sorted[0]?.axisTime ?? latestTime;
-        const windowStart = Math.max(latestTime - currentPowerWindowMs, earliestTime);
-        const recent = sorted.filter((entry) => entry.axisTime >= windowStart);
-        if (recent.length === 0) {
-          drawEmptyState('No power samples in the last 30 minutes.');
-          return summary;
-        }
-
-        summary.sampleCount = recent.length;
-        summary.hasData = true;
-        summary.windowStartEpoch = windowStart;
-        summary.windowEndEpoch = latestTime;
-
-        const chartData = [...recent];
-        if (chartData.length > 0 && chartData[0].axisTime > windowStart) {
-          chartData.unshift({ axisTime: windowStart, watts: chartData[0].watts });
-        }
-        if (chartData.length > 0 && chartData[chartData.length - 1].axisTime < latestTime) {
-          chartData.push({ axisTime: latestTime, watts: chartData[chartData.length - 1].watts });
-        }
-
-        const xFormatter = ({ ratio, range }) => {
-          if (!Number.isFinite(range) || range <= 0) {
-            return '';
-          }
-          const minutes = (ratio * range) / 60000;
-          const decimals = range >= 20 * 60000 ? 0 : range >= 5 * 60000 ? 1 : 2;
-          return `${minutes.toFixed(decimals)} min`;
-        };
-
-        renderLineChart(
-          canvas,
-          [
-            {
-              label: 'Watts',
-              color: '#2ca02c',
-              data: chartData.map((entry) => ({ x: entry.axisTime, y: entry.watts })),
-            },
-          ],
-          {
-            yUnit: 'W',
-            xFormatter,
-            margin: { left: 60, right: 18, top: 48, bottom: 48 },
-          },
-        );
-
-        return summary;
-      }
-
-      function renderPowerChart(canvas, entries, meta = {}) {
-        if (selectedPowerRange === 'current') {
-          return renderCurrentPowerChart(canvas, entries);
-        }
-        if (selectedPowerRange === 'day') {
-          return renderDayPowerBarChart(canvas, entries);
-        }
-        if (selectedPowerRange === 'week') {
-          return renderRecentDailyUsageChart(canvas, entries, meta, {
-            days: 7,
-            title: 'Daily Energy (Last 7 Days)',
-          });
-        }
-        if (selectedPowerRange === 'month') {
-          return renderRecentDailyUsageChart(canvas, entries, meta, {
-            days: 30,
-            title: 'Daily Energy (Last 30 Days)',
-          });
-        }
-        if (selectedPowerRange === 'year') {
-          return renderRecentMonthlyUsageChart(canvas, entries, meta, {
-            months: 12,
-            title: 'Monthly Energy (Last 12 Months)',
-          });
-        }
-
-        const prepared = Array.isArray(entries)
-          ? entries
-              .map((entry) => {
-                const time = Number(entry.t);
-                if (!Number.isFinite(time)) {
-                  return null;
-                }
-                const wattsValue =
-                  entry.watts === null || typeof entry.watts === 'undefined'
-                    ? NaN
-                    : Number(entry.watts);
-                return {
-                  time,
-                  watts: Number.isFinite(wattsValue) ? wattsValue : NaN,
-                };
-              })
-              .filter((entry) => entry !== null)
-          : [];
-
-        const xFormatter = ({ ratio, range }) => {
-          if (!Number.isFinite(range) || range <= 0) {
-            return '';
-          }
-          const totalHours = range / 3600000;
-          if (totalHours >= 24 * 30) {
-            const totalDays = range / 86400000;
-            const days = ratio * totalDays;
-            const decimals = totalDays >= 60 ? 0 : totalDays >= 14 ? 1 : 2;
-            return `${days.toFixed(decimals)} d`;
-          }
-          if (totalHours >= 24) {
-            const totalDays = range / 86400000;
-            const days = ratio * totalDays;
-            const decimals = totalDays >= 10 ? 1 : 2;
-            return `${days.toFixed(decimals)} d`;
-          }
-          if (totalHours >= 6) {
-            const hours = ratio * totalHours;
-            return `${hours.toFixed(0)} h`;
-          }
-          const minutes = (ratio * range) / 60000;
-          const decimals = minutes >= 10 ? 0 : 1;
-          return `${minutes.toFixed(decimals)} min`;
-        };
-
-        renderLineChart(
-          canvas,
-          [
-            {
-              label: 'Watts',
-              color: '#2ca02c',
-              data: prepared.map((entry) => ({ x: entry.time, y: entry.watts })),
-            },
-          ],
-          { yUnit: 'W', xFormatter },
-        );
-
-        return {
-          type: 'line',
-          hasData: prepared.length > 0,
-          sampleCount: prepared.length,
-        };
-      }
-
-      function renderDayPowerBarChart(canvas, entries) {
-        const summary = {
-          type: 'day',
-          sampleCount: Array.isArray(entries) ? entries.length : 0,
-          hasData: false,
-          buckets: [],
-          coveredBuckets: 0,
-          dayStartEpoch: null,
-        };
-        if (!canvas) {
-          return summary;
-        }
-        const context = canvas.getContext('2d');
-        if (!context) {
-          return summary;
-        }
-
-        const width = canvas.width;
-        const height = canvas.height;
-        context.clearRect(0, 0, width, height);
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, width, height);
-
-        const drawEmptyState = (message) => {
-          context.fillStyle = '#6b7280';
-          context.font = '14px sans-serif';
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          context.fillText(message, width / 2, height / 2);
-        };
-
-        let latestSampleUptime = null;
-        if (Array.isArray(entries)) {
-          entries.forEach((entry) => {
-            const time = Number(entry.t);
-            if (!Number.isFinite(time)) {
-              return;
-            }
-            if (!Number.isFinite(latestSampleUptime) || time > latestSampleUptime) {
-              latestSampleUptime = time;
-            }
-          });
-        }
-
-        const referenceEpochMs = estimateReferenceEpochMs(latestSampleUptime);
-        const referenceDate = new Date(referenceEpochMs);
-        referenceDate.setHours(0, 0, 0, 0);
-        const dayStartEpoch = referenceDate.getTime();
-        const dayEndEpoch = dayStartEpoch + 24 * 60 * 60 * 1000;
-        summary.dayStartEpoch = dayStartEpoch;
-
-        const buckets = Array.from({ length: 24 }, () => ({ sum: 0, count: 0 }));
-        if (Array.isArray(entries)) {
-          entries.forEach((entry) => {
-            const time = Number(entry.t);
-            const wattsValue =
-              entry.watts === null || typeof entry.watts === 'undefined'
-                ? NaN
-                : Number(entry.watts);
-            if (!Number.isFinite(time) || !Number.isFinite(wattsValue)) {
-              return;
-            }
-            const epochMs = uptimeToEpochMs(time);
-            if (!Number.isFinite(epochMs)) {
-              return;
-            }
-            if (epochMs < dayStartEpoch || epochMs >= dayEndEpoch) {
-              return;
-            }
-            const hourIndex = Math.floor((epochMs - dayStartEpoch) / 3600000);
-            if (hourIndex < 0 || hourIndex >= buckets.length) {
-              return;
-            }
-            buckets[hourIndex].sum += wattsValue;
-            buckets[hourIndex].count += 1;
-          });
-        }
-
-        const hasSamples = buckets.some((bucket) => bucket.count > 0);
-        summary.hasData = hasSamples;
-        summary.coveredBuckets = buckets.filter((bucket) => bucket.count > 0).length;
-        summary.buckets = buckets.map((bucket, index) => ({
-          start: dayStartEpoch + index * 3600000,
-          end: dayStartEpoch + (index + 1) * 3600000,
-          averageWatts: bucket.count > 0 ? bucket.sum / bucket.count : 0,
-          count: bucket.count,
-        }));
-        if (!hasSamples) {
-          drawEmptyState('No power samples for this day yet');
-          return summary;
-        }
-
-        const averages = buckets.map((bucket) =>
-          bucket.count > 0 ? bucket.sum / bucket.count : 0,
-        );
-        const maxAverage = Math.max(...averages);
-        const yMax = maxAverage > 0 ? Math.max(maxAverage * 1.1, maxAverage + 5) : 10;
-        const yTicks = 5;
-        const margin = { left: 60, right: 18, top: 48, bottom: 56 };
-        const chartWidth = Math.max(1, width - margin.left - margin.right);
-        const chartHeight = Math.max(1, height - margin.top - margin.bottom);
-
-        const toY = (value) =>
-          margin.top + chartHeight - Math.min(1, Math.max(0, value / yMax)) * chartHeight;
-
-        context.strokeStyle = '#e2e8f0';
-        context.lineWidth = 1;
-        for (let i = 0; i <= yTicks; ++i) {
-          const ratio = i / yTicks;
-          const y = margin.top + chartHeight - ratio * chartHeight;
-          context.beginPath();
-          context.moveTo(margin.left, y);
-          context.lineTo(margin.left + chartWidth, y);
-          context.stroke();
-        }
-
-        context.strokeStyle = '#94a3b8';
-        context.beginPath();
-        context.moveTo(margin.left, margin.top);
-        context.lineTo(margin.left, margin.top + chartHeight);
-        context.lineTo(margin.left + chartWidth, margin.top + chartHeight);
-        context.stroke();
-
-        const slotWidth = chartWidth / buckets.length;
-        const barWidth = Math.max(6, slotWidth * 0.6);
-        const barColor = '#2ca02c';
-        const labelDates = Array.from({ length: buckets.length }, (_, index) =>
-          new Date(dayStartEpoch + index * 3600000),
-        );
-
-        context.fillStyle = barColor;
-        buckets.forEach((bucket, index) => {
-          const average = averages[index];
-          const barHeight = chartHeight * (Math.min(average, yMax) / yMax);
-          const x = margin.left + index * slotWidth + (slotWidth - barWidth) / 2;
-          const y = margin.top + chartHeight - barHeight;
-          context.fillRect(x, y, barWidth, barHeight);
-        });
-
-        context.fillStyle = '#475569';
-        context.font = '12px sans-serif';
-        context.textAlign = 'right';
-        context.textBaseline = 'middle';
-        for (let i = 0; i <= yTicks; ++i) {
-          const ratio = i / yTicks;
-          const value = yMax * ratio;
-          const y = toY(value);
-          const label = value.toFixed(value >= 50 ? 0 : value >= 10 ? 1 : 2);
-          context.fillText(`${label} W`, margin.left - 8, y);
-        }
-
-        context.textAlign = 'center';
-        context.textBaseline = 'top';
-        labelDates.forEach((date, index) => {
-          const label = date.toLocaleTimeString([], { hour: '2-digit' });
-          const x = margin.left + index * slotWidth + slotWidth / 2;
-          const y = margin.top + chartHeight + 8;
-          if (index % 2 === 0) {
-            context.fillText(label, x, y);
-          }
-        });
-
-        context.textAlign = 'left';
-        context.textBaseline = 'middle';
-        context.fillStyle = barColor;
-        context.fillRect(margin.left, Math.max(18, margin.top - 26), 12, 12);
-        context.fillStyle = '#1f2937';
-        context.fillText(
-          'Average Watts per Hour',
-          margin.left + 16,
-          Math.max(18, margin.top - 20),
-        );
-
-        return summary;
-      }
-
-      function renderRecentDailyUsageChart(canvas, entries, meta, options = {}) {
-        const dayMs = 24 * 60 * 60 * 1000;
-        const days = Number(options.days) > 0 ? Math.floor(Number(options.days)) : 7;
-        const summary = {
-          type: 'daily-usage',
-          sampleCount: Array.isArray(entries) ? entries.length : 0,
-          bucketCount: days,
-          buckets: [],
-          coveredBuckets: 0,
-          totalWh: 0,
-          windowStartEpoch: null,
-          windowEndEpoch: null,
-          hasData: false,
-        };
-        if (!canvas) {
-          return summary;
-        }
-        const context = canvas.getContext('2d');
-        if (!context || days <= 0) {
-          return summary;
-        }
-
-        const latestEntry = Array.isArray(entries) && entries.length > 0 ? entries[entries.length - 1] : null;
-        let latestEpoch = latestEntry ? uptimeToEpochMs(latestEntry.t) : null;
-        if (!Number.isFinite(latestEpoch)) {
-          latestEpoch = estimateReferenceEpochMs();
-        }
-        const anchorDate = new Date(Number.isFinite(latestEpoch) ? latestEpoch : Date.now());
-        anchorDate.setHours(0, 0, 0, 0);
-        const windowEnd = anchorDate.getTime() + dayMs;
-        const windowStart = windowEnd - days * dayMs;
-        summary.windowStartEpoch = windowStart;
-        summary.windowEndEpoch = windowEnd;
-
-        const buckets = Array.from({ length: days }, (_, index) => {
-          const start = windowStart + index * dayMs;
-          return { start, end: start + dayMs, totalWh: 0, samples: 0 };
-        });
-
-        let previousWh = Number(meta?.rangeStartEnergyWh);
-        if (!Number.isFinite(previousWh)) {
-          previousWh = null;
-        }
-
-        if (Array.isArray(entries)) {
-          entries.forEach((entry) => {
-            const whValue = Number(entry?.wh);
-            const epoch = uptimeToEpochMs(entry?.t);
-            if (!Number.isFinite(whValue)) {
-              return;
-            }
-            if (!Number.isFinite(epoch)) {
-              previousWh = whValue;
-              return;
-            }
-            const sampleBucketIndex = Math.floor((epoch - windowStart) / dayMs);
-            if (sampleBucketIndex >= 0 && sampleBucketIndex < buckets.length) {
-              buckets[sampleBucketIndex].samples =
-                (buckets[sampleBucketIndex].samples || 0) + 1;
-            }
-            if (!Number.isFinite(previousWh)) {
-              previousWh = whValue;
-              return;
-            }
-            const delta = whValue - previousWh;
-            previousWh = whValue;
-            if (!Number.isFinite(delta) || delta <= 0) {
-              return;
-            }
-            if (sampleBucketIndex < 0 || sampleBucketIndex >= buckets.length) {
-              return;
-            }
-            buckets[sampleBucketIndex].totalWh += delta;
-          });
-        }
-
-        const values = buckets.map((bucket) => (Number.isFinite(bucket.totalWh) ? Math.max(0, bucket.totalWh) : 0));
-        summary.buckets = buckets;
-        summary.coveredBuckets = buckets.filter((bucket) => (bucket.samples || 0) > 0).length;
-        summary.totalWh = values.reduce((sum, value) => sum + value, 0);
-        summary.hasData = summary.coveredBuckets > 0;
-
-        renderUsageBarChart(context, buckets, {
-          title: options.title,
-          emptyMessage: 'No power samples for this period yet',
-          hasSamples: summary.coveredBuckets > 0,
-          labelFormatter: (bucket, index, count) => {
-            const date = new Date(bucket.start);
-            if (!summary.hasData) {
-              return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
-            }
-            if (count > 14) {
-              const interval = Math.max(1, Math.ceil(count / 10));
-              if (index % interval !== 0 && index !== count - 1) {
-                return '';
-              }
-            }
-            return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
-          },
-        });
-
-        return summary;
-      }
-
-      function renderRecentMonthlyUsageChart(canvas, entries, meta, options = {}) {
-        const months = Number(options.months) > 0 ? Math.floor(Number(options.months)) : 12;
-        const summary = {
-          type: 'monthly-usage',
-          sampleCount: Array.isArray(entries) ? entries.length : 0,
-          bucketCount: months,
-          buckets: [],
-          coveredBuckets: 0,
-          totalWh: 0,
-          windowStartEpoch: null,
-          windowEndEpoch: null,
-          hasData: false,
-        };
-        if (!canvas) {
-          return summary;
-        }
-        const context = canvas.getContext('2d');
-        if (!context || months <= 0) {
-          return summary;
-        }
-
-        const latestEntry = Array.isArray(entries) && entries.length > 0 ? entries[entries.length - 1] : null;
-        let latestEpoch = latestEntry ? uptimeToEpochMs(latestEntry.t) : null;
-        if (!Number.isFinite(latestEpoch)) {
-          latestEpoch = estimateReferenceEpochMs();
-        }
-        const anchorDate = new Date(Number.isFinite(latestEpoch) ? latestEpoch : Date.now());
-        const endMonth = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1);
-        const startMonth = new Date(endMonth.getFullYear(), endMonth.getMonth() - months, 1);
-        summary.windowStartEpoch = startMonth.getTime();
-        summary.windowEndEpoch = endMonth.getTime();
-
-        const buckets = Array.from({ length: months }, (_, index) => {
-          const startDate = new Date(startMonth.getFullYear(), startMonth.getMonth() + index, 1);
-          const endDate = new Date(startMonth.getFullYear(), startMonth.getMonth() + index + 1, 1);
-          return { start: startDate.getTime(), end: endDate.getTime(), totalWh: 0, samples: 0 };
-        });
-
-        let previousWh = Number(meta?.rangeStartEnergyWh);
-        if (!Number.isFinite(previousWh)) {
-          previousWh = null;
-        }
-
-        if (Array.isArray(entries)) {
-          entries.forEach((entry) => {
-            const whValue = Number(entry?.wh);
-            const epoch = uptimeToEpochMs(entry?.t);
-            if (!Number.isFinite(whValue)) {
-              return;
-            }
-            if (!Number.isFinite(epoch)) {
-              previousWh = whValue;
-              return;
-            }
-            const bucketIndex = buckets.findIndex(
-              (bucket) => epoch >= bucket.start && epoch < bucket.end,
-            );
-            if (bucketIndex === -1) {
-              previousWh = whValue;
-              return;
-            }
-            buckets[bucketIndex].samples = (buckets[bucketIndex].samples || 0) + 1;
-            if (!Number.isFinite(previousWh)) {
-              previousWh = whValue;
-              return;
-            }
-            const delta = whValue - previousWh;
-            previousWh = whValue;
-            if (!Number.isFinite(delta) || delta <= 0) {
-              return;
-            }
-            buckets[bucketIndex].totalWh += delta;
-          });
-        }
-
-        const values = buckets.map((bucket) => (Number.isFinite(bucket.totalWh) ? Math.max(0, bucket.totalWh) : 0));
-        summary.buckets = buckets;
-        summary.coveredBuckets = buckets.filter((bucket) => (bucket.samples || 0) > 0).length;
-        summary.totalWh = values.reduce((sum, value) => sum + value, 0);
-        summary.hasData = summary.coveredBuckets > 0;
-
-        renderUsageBarChart(context, buckets, {
-          title: options.title,
-          emptyMessage: 'No power samples for this period yet',
-          hasSamples: summary.coveredBuckets > 0,
-          labelFormatter: (bucket, index) => {
-            const date = new Date(bucket.start);
-            const formatOptions =
-              index === 0 || date.getMonth() === 0
-                ? { month: 'short', year: 'numeric' }
-                : { month: 'short' };
-            return date.toLocaleDateString(undefined, formatOptions);
-          },
-        });
-
-        return summary;
-      }
-
-      function renderUsageBarChart(context, buckets, options = {}) {
-        const canvas = context.canvas;
-        const width = canvas.width;
-        const height = canvas.height;
-        context.clearRect(0, 0, width, height);
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, width, height);
-
-        const drawEmptyState = (message) => {
-          context.fillStyle = '#6b7280';
-          context.font = '14px sans-serif';
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          context.fillText(message, width / 2, height / 2);
-        };
-
-        if (!Array.isArray(buckets) || buckets.length === 0) {
-          drawEmptyState(options.emptyMessage || 'No data available');
-          return;
-        }
-
-        const values = buckets.map((bucket) => (Number.isFinite(bucket.totalWh) ? Math.max(0, bucket.totalWh) : 0));
-        const hasUsage = values.some((value) => value > 0);
-        const hasSamples = Boolean(options.hasSamples);
-        if (!hasUsage && !hasSamples) {
-          drawEmptyState(options.emptyMessage || 'No data available');
-          return;
-        }
-
-        const maxValue = Math.max(...values);
-        const yMax = maxValue > 0 ? maxValue * 1.1 : 10;
-        const margin = { left: 72, right: 18, top: 48, bottom: 64 };
-        const chartWidth = Math.max(1, width - margin.left - margin.right);
-        const chartHeight = Math.max(1, height - margin.top - margin.bottom);
-        const slotWidth = chartWidth / buckets.length;
-        const barWidth = Math.max(6, slotWidth * 0.6);
-        const useKilowattHours = yMax >= 1000;
-        const scale = useKilowattHours ? 1 / 1000 : 1;
-        const unitLabel = useKilowattHours ? 'kWh' : 'Wh';
-        const yTicks = 5;
-
-        const toY = (value) =>
-          margin.top + chartHeight - Math.min(1, Math.max(0, value / yMax)) * chartHeight;
-
-        context.strokeStyle = '#e2e8f0';
-        context.lineWidth = 1;
-        for (let i = 0; i <= yTicks; ++i) {
-          const ratio = i / yTicks;
-          const y = margin.top + chartHeight - ratio * chartHeight;
-          context.beginPath();
-          context.moveTo(margin.left, y);
-          context.lineTo(margin.left + chartWidth, y);
-          context.stroke();
-        }
-
-        context.strokeStyle = '#94a3b8';
-        context.beginPath();
-        context.moveTo(margin.left, margin.top);
-        context.lineTo(margin.left, margin.top + chartHeight);
-        context.lineTo(margin.left + chartWidth, margin.top + chartHeight);
-        context.stroke();
-
-        context.fillStyle = '#2563eb';
-        buckets.forEach((bucket, index) => {
-          const value = values[index];
-          const barHeight = chartHeight * (Math.min(value, yMax) / yMax);
-          const x = margin.left + index * slotWidth + (slotWidth - barWidth) / 2;
-          const y = margin.top + chartHeight - barHeight;
-          context.fillRect(x, y, barWidth, barHeight);
-        });
-
-        context.fillStyle = '#475569';
-        context.font = '12px sans-serif';
-        context.textAlign = 'right';
-        context.textBaseline = 'middle';
-        for (let i = 0; i <= yTicks; ++i) {
-          const ratio = i / yTicks;
-          const value = yMax * ratio;
-          const y = toY(value);
-          const labelValue = value * scale;
-          const label = labelValue >= 10 ? labelValue.toFixed(0) : labelValue.toFixed(1);
-          context.fillText(`${label} ${unitLabel}`, margin.left - 8, y);
-        }
-
-        const labelFormatter = typeof options.labelFormatter === 'function'
-          ? options.labelFormatter
-          : () => '';
-        const labelInterval = Math.max(1, Math.ceil(buckets.length / 10));
-        context.textAlign = 'center';
-        context.textBaseline = 'top';
-        buckets.forEach((bucket, index) => {
-          const label = labelFormatter(bucket, index, buckets.length);
-          if (!label) {
-            return;
-          }
-          if (buckets.length > 12 && index % labelInterval !== 0 && index !== buckets.length - 1) {
-            return;
-          }
-          const x = margin.left + index * slotWidth + slotWidth / 2;
-          const y = margin.top + chartHeight + 8;
-          context.fillText(label, x, y);
-        });
-
-        if (options.title) {
-          context.textAlign = 'left';
-          context.textBaseline = 'middle';
-          context.fillStyle = '#2563eb';
-          context.fillRect(margin.left, Math.max(18, margin.top - 26), 12, 12);
-          context.fillStyle = '#1f2937';
-          context.fillText(options.title, margin.left + 16, Math.max(18, margin.top - 20));
-        }
-      }
-
-      function setActivePowerRange(range) {
-        powerRangeButtons.forEach((button) => {
-          if (button.dataset.powerRange === range) {
-            button.classList.add('active');
-          } else {
-            button.classList.remove('active');
-          }
-        });
-      }
-
-      function formatEnergyWh(value) {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric)) {
-          return '-';
-        }
-        const absolute = Math.abs(numeric);
-        if (absolute >= 1000) {
-          const kilo = numeric / 1000;
-          const decimals = Math.abs(kilo) >= 10 ? 1 : 2;
-          return `${kilo.toFixed(decimals)} kWh`;
-        }
-        if (absolute >= 100) {
-          return `${numeric.toFixed(0)} Wh`;
-        }
-        return `${numeric.toFixed(1)} Wh`;
-      }
-
-      function formatShortDate(timestampMs) {
-        const numeric = Number(timestampMs);
-        if (!Number.isFinite(numeric)) {
-          return '';
-        }
-        const epochValue = uptimeToEpochMs(numeric);
-        const date = new Date(Number.isFinite(epochValue) ? epochValue : numeric);
-        const month = date.toLocaleDateString(undefined, { month: 'short' });
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${month} ${day} ${hours}:${minutes}`;
-      }
-
-      function describeDuration(ms) {
-        const numeric = Number(ms);
-        if (!Number.isFinite(numeric) || numeric <= 0) {
-          return '0 minutes';
-        }
-        const days = numeric / 86400000;
-        if (days >= 1) {
-          const decimals = days >= 10 ? 0 : 1;
-          const value = days.toFixed(decimals);
-          return `${value} day${Number(value) === 1 ? '' : 's'}`;
-        }
-        const hours = numeric / 3600000;
-        if (hours >= 1) {
-          const decimals = hours >= 10 ? 0 : 1;
-          const value = hours.toFixed(decimals);
-          return `${value} hour${Number(value) === 1 ? '' : 's'}`;
-        }
-        const minutes = numeric / 60000;
-        const decimals = minutes >= 10 ? 0 : 1;
-        const value = minutes.toFixed(decimals);
-        return `${value} minute${Number(value) === 1 ? '' : 's'}`;
-      }
-
-      function estimateCurrentUptimeMs() {
-        if (!Number.isFinite(currentTimeState.uptimeMs)) {
-          return null;
-        }
-        if (!Number.isFinite(currentTimeState.uptimeReceivedAtMs)) {
-          return currentTimeState.uptimeMs;
-        }
-        const elapsed = Date.now() - currentTimeState.uptimeReceivedAtMs;
-        if (!Number.isFinite(elapsed) || elapsed < 0) {
-          return currentTimeState.uptimeMs;
-        }
-        return currentTimeState.uptimeMs + elapsed;
-      }
-
-      function uptimeToEpochMs(uptimeMs) {
-        const numeric = Number(uptimeMs);
-        if (!Number.isFinite(numeric)) {
-          return null;
-        }
-        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
-          return numeric + currentTimeState.clockOffsetMs;
-        }
-        if (Number.isFinite(currentTimeState.epochSeconds)) {
-          const baseEpoch = currentTimeState.epochSeconds * 1000;
-          const receivedAt = Number.isFinite(currentTimeState.receivedAtMs)
-            ? currentTimeState.receivedAtMs
-            : null;
-          const elapsedSince = receivedAt !== null ? Date.now() - receivedAt : 0;
-          const estimatedCurrentEpoch = baseEpoch + (Number.isFinite(elapsedSince) ? elapsedSince : 0);
-          const estimatedUptime = estimateCurrentUptimeMs();
-          if (Number.isFinite(estimatedUptime)) {
-            const delta = numeric - estimatedUptime;
-            return estimatedCurrentEpoch + delta;
-          }
-          return numeric;
-        }
-        return numeric;
-      }
-
-      function estimateReferenceEpochMs(latestUptimeMs = null) {
-        const latestNumeric = Number(latestUptimeMs);
-        const hasLatest = Number.isFinite(latestNumeric);
-        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
-          if (hasLatest) {
-            return latestNumeric + currentTimeState.clockOffsetMs;
-          }
-          const estimatedUptime = estimateCurrentUptimeMs();
-          if (Number.isFinite(estimatedUptime)) {
-            return estimatedUptime + currentTimeState.clockOffsetMs;
-          }
-        }
-        if (Number.isFinite(currentTimeState.epochSeconds)) {
-          const baseEpoch = currentTimeState.epochSeconds * 1000;
-          const receivedAt = Number.isFinite(currentTimeState.receivedAtMs)
-            ? currentTimeState.receivedAtMs
-            : null;
-          const elapsedSince = receivedAt !== null ? Date.now() - receivedAt : 0;
-          return baseEpoch + (Number.isFinite(elapsedSince) ? elapsedSince : 0);
-        }
-        if (hasLatest) {
-          return latestNumeric;
-        }
-        const estimatedUptimeFallback = estimateCurrentUptimeMs();
-        if (Number.isFinite(estimatedUptimeFallback)) {
-          return estimatedUptimeFallback;
-        }
-        return Date.now();
-      }
-
-      function epochToUptimeMs(epochMs) {
-        const numeric = Number(epochMs);
-        if (!Number.isFinite(numeric)) {
-          return null;
-        }
-        if (Number.isFinite(currentTimeState.clockOffsetMs)) {
-          return numeric - currentTimeState.clockOffsetMs;
-        }
-        const estimatedEpoch = estimateReferenceEpochMs();
-        const estimatedUptime = estimateCurrentUptimeMs();
-        if (Number.isFinite(estimatedEpoch) && Number.isFinite(estimatedUptime)) {
-          const delta = numeric - estimatedEpoch;
-          return estimatedUptime + delta;
-        }
-        return numeric;
-      }
-
-      function updatePowerRangeAvailability(meta) {
-        const availableCount = Number(meta?.availableCount) || 0;
-        let fallbackRange = null;
-        powerRangeButtons.forEach((button) => {
-          const range = button.dataset.powerRange;
-          const enabled = availableCount >= 1 || range === 'current';
-          button.disabled = !enabled;
-          if (enabled && fallbackRange === null) {
-            fallbackRange = range;
-          }
-        });
-        const selectedButton = powerRangeButtons.find(
-          (button) => button.dataset.powerRange === selectedPowerRange,
-        );
-        if (selectedButton && selectedButton.disabled && fallbackRange && fallbackRange !== selectedPowerRange) {
-          selectedPowerRange = fallbackRange;
-          setActivePowerRange(selectedPowerRange);
-          return true;
-        }
-        return false;
-      }
-
-      function applyPowerHistoryResponse(data) {
-        const entries = Array.isArray(data?.entries) ? data.entries : [];
-
-        const chartSummary = renderPowerChart(
-          document.getElementById('powerChart'),
-          entries,
-          data,
-        );
-
-        const baselineWh = Number(data?.rangeStartEnergyWh);
-        const endWh = Number(data?.rangeEndEnergyWh);
-        let totalWh =
-          Number.isFinite(baselineWh) && Number.isFinite(endWh) ? endWh - baselineWh : NaN;
-        if (Number.isFinite(totalWh) && totalWh < 0) {
-          totalWh = 0;
-        }
-        const filteredSpanMs = Number(data?.filteredSpanMs);
-        const filteredCount = Number(data?.filteredCount) || entries.length;
-
-        if (!Number.isFinite(totalWh) || filteredCount < 2) {
-          powerSummaryTotal.textContent = '-';
-          powerSummaryAverage.textContent = '-';
-        } else {
-          powerSummaryTotal.textContent = formatEnergyWh(totalWh);
-          const days = filteredSpanMs > 0 ? filteredSpanMs / (24 * 60 * 60 * 1000) : 0;
-          if (days > 0.05) {
-            powerSummaryAverage.textContent = `${formatEnergyWh(totalWh / days)} / day`;
-          } else {
-            powerSummaryAverage.textContent = `${formatEnergyWh(totalWh)} / day`;
-          }
-        }
-
-        if (!powerRangeMessage) {
-          return;
-        }
-
-        if (filteredCount === 0 || entries.length === 0 || (chartSummary && chartSummary.hasData === false)) {
-          powerRangeMessage.textContent =
-            selectedPowerRange === 'current'
-              ? 'No recent power samples.'
-              : 'No power history available yet.';
-          return;
-        }
-
-        if (selectedPowerRange === 'day') {
-          let earliestUptime = null;
-          entries.forEach((entry) => {
-            const value = Number(entry?.t);
-            if (!Number.isFinite(value)) {
-              return;
-            }
-            if (earliestUptime === null || value < earliestUptime) {
-              earliestUptime = value;
-            }
-          });
-          const sampleLabel = filteredCount === 1 ? 'sample' : 'samples';
-          const hasRealtimeClock =
-            Number.isFinite(currentTimeState.clockOffsetMs) ||
-            (Number.isFinite(currentTimeState.epochSeconds) &&
-              Number.isFinite(currentTimeState.uptimeMs));
-          if (earliestUptime !== null) {
-            const epochValue = uptimeToEpochMs(earliestUptime);
-            if (hasRealtimeClock && Number.isFinite(epochValue)) {
-              const formattedDate = new Date(epochValue).toLocaleDateString(undefined, {
-                month: 'short',
-                day: '2-digit',
-                year: 'numeric',
-              });
-              powerRangeMessage.textContent = `Showing hourly averages for ${formattedDate} (${filteredCount} ${sampleLabel}).`;
-              return;
-            }
-          }
-          if (hasRealtimeClock) {
-            const fallbackEpoch = estimateReferenceEpochMs(earliestUptime);
-            if (Number.isFinite(fallbackEpoch)) {
-              const formattedDate = new Date(fallbackEpoch).toLocaleDateString(undefined, {
-                month: 'short',
-                day: '2-digit',
-                year: 'numeric',
-              });
-              powerRangeMessage.textContent = `Showing hourly averages for ${formattedDate} (${filteredCount} ${sampleLabel}).`;
-              return;
-            }
-          }
-          powerRangeMessage.textContent = `Showing hourly averages from the latest 24 hours (${filteredCount} ${sampleLabel}).`;
-          return;
-        }
-
-        if (selectedPowerRange === 'current') {
-          const windowStart = Number(chartSummary.windowStartEpoch);
-          const windowEnd = Number(chartSummary.windowEndEpoch);
-          const durationMs =
-            Number.isFinite(windowStart) && Number.isFinite(windowEnd) && windowEnd >= windowStart
-              ? windowEnd - windowStart
-              : currentPowerWindowMs;
-          const durationText = describeDuration(durationMs);
-          powerRangeMessage.textContent = `Showing ${chartSummary.sampleCount} sample${
-            chartSummary.sampleCount === 1 ? '' : 's'
-          } from the last ${durationText}.`;
-          return;
-        }
-
-        if (selectedPowerRange === 'week' || selectedPowerRange === 'month') {
-          const totalDays = selectedPowerRange === 'week' ? 7 : 30;
-          const covered = chartSummary?.coveredBuckets ?? 0;
-          const windowStart = chartSummary?.windowStartEpoch;
-          const windowEnd = chartSummary?.windowEndEpoch;
-          const totalEnergyText = Number.isFinite(chartSummary?.totalWh)
-            ? formatEnergyWh(chartSummary.totalWh)
-            : null;
-          let detail = '';
-          if (Number.isFinite(windowStart) && Number.isFinite(windowEnd)) {
-            const startLabel = new Date(windowStart).toLocaleDateString(undefined, {
-              month: 'short',
-              day: '2-digit',
-            });
-            const endLabel = new Date(windowEnd - 1).toLocaleDateString(undefined, {
-              month: 'short',
-              day: '2-digit',
-            });
-            detail = `${startLabel} – ${endLabel}`;
-          }
-          let message = `Showing daily energy totals for the last ${totalDays} days`;
-          if (detail) {
-            message += ` (${detail})`;
-          }
-          message += '.';
-          message += ` ${covered} of ${totalDays} day${totalDays === 1 ? '' : 's'} include samples.`;
-          if (totalEnergyText) {
-            message += ` Total: ${totalEnergyText}.`;
-          }
-          powerRangeMessage.textContent = message;
-          return;
-        }
-
-        if (selectedPowerRange === 'year') {
-          const covered = chartSummary?.coveredBuckets ?? 0;
-          const windowStart = chartSummary?.windowStartEpoch;
-          const windowEnd = chartSummary?.windowEndEpoch;
-          const totalEnergyText = Number.isFinite(chartSummary?.totalWh)
-            ? formatEnergyWh(chartSummary.totalWh)
-            : null;
-          let detail = '';
-          if (Number.isFinite(windowStart) && Number.isFinite(windowEnd)) {
-            const startLabel = new Date(windowStart).toLocaleDateString(undefined, {
-              month: 'short',
-              year: 'numeric',
-            });
-            const endLabel = new Date(windowEnd - 1).toLocaleDateString(undefined, {
-              month: 'short',
-              year: 'numeric',
-            });
-            detail = `${startLabel} – ${endLabel}`;
-          }
-          let message = 'Showing monthly energy totals for the last 12 months';
-          if (detail) {
-            message += ` (${detail})`;
-          }
-          message += '.';
-          message += ` ${covered} of 12 months include samples.`;
-          if (totalEnergyText) {
-            message += ` Total: ${totalEnergyText}.`;
-          }
-          powerRangeMessage.textContent = message;
-          return;
-        }
-
-        const coverageMs = Number.isFinite(filteredSpanMs) ? filteredSpanMs : 0;
-
-        const startText = formatShortDate(entries[0].t);
-        const endText = formatShortDate(entries[entries.length - 1].t);
-        if (startText && endText) {
-          powerRangeMessage.textContent = `Showing ${filteredCount} samples from ${startText} to ${endText}.`;
-        } else {
-          powerRangeMessage.textContent = `Showing ${filteredCount} samples spanning ${describeDuration(
-            coverageMs,
-          )}.`;
-        }
-      }
-
-      async function refreshPowerHistory(force = false) {
-        if (powerRangeButtons.length === 0) {
-          return;
-        }
-        if (powerHistoryRequest) {
-          if (!force) {
-            return powerHistoryRequest;
-          }
-          try {
-            await powerHistoryRequest;
-          } catch (err) {
-            console.error(err);
-          }
-        }
-
-        const now = Date.now();
-        if (!force && now - lastPowerHistoryRefresh < powerHistoryRefreshIntervalMs) {
-          return;
-        }
-        lastPowerHistoryRefresh = now;
-
-        const requestPromise = (async () => {
-          const duration = powerRangeDurations[selectedPowerRange] || powerRangeDurations.week;
-          const params = new URLSearchParams();
-          const estimatedUptime = estimateCurrentUptimeMs();
-          const canMapEpochToUptime =
-            Number.isFinite(currentTimeState.clockOffsetMs) ||
-            (Number.isFinite(currentTimeState.epochSeconds) &&
-              Number.isFinite(currentTimeState.uptimeMs));
-
-          if (selectedPowerRange === 'day') {
-            let dayStartUptime = null;
-            let dayEndUptime = null;
-            if (canMapEpochToUptime) {
-              const referenceEpoch = estimateReferenceEpochMs(estimatedUptime);
-              if (Number.isFinite(referenceEpoch)) {
-                const dayStart = new Date(referenceEpoch);
-                dayStart.setHours(0, 0, 0, 0);
-                const dayStartEpoch = dayStart.getTime();
-                const dayEndEpoch = dayStartEpoch + 24 * 60 * 60 * 1000 - 1;
-                dayStartUptime = epochToUptimeMs(dayStartEpoch);
-                dayEndUptime = epochToUptimeMs(dayEndEpoch);
-              }
-            }
-            if (!Number.isFinite(dayStartUptime) && Number.isFinite(estimatedUptime)) {
-              dayStartUptime = Math.max(0, estimatedUptime - 24 * 60 * 60 * 1000);
-            }
-            if (Number.isFinite(dayStartUptime)) {
-              params.set('start', String(Math.max(0, Math.floor(dayStartUptime))));
-            }
-            if (
-              Number.isFinite(dayEndUptime) &&
-              Number.isFinite(dayStartUptime) &&
-              dayEndUptime >= dayStartUptime
-            ) {
-              params.set('end', String(Math.floor(dayEndUptime)));
-            }
-          } else if (Number.isFinite(estimatedUptime) && Number.isFinite(duration)) {
-            const startCandidate = Math.max(0, estimatedUptime - duration);
-            params.set('start', String(Math.floor(startCandidate)));
-          }
-          const url = params.toString().length > 0 ? `/api/power-log?${params}` : '/api/power-log';
-          if (powerRangeMessage) {
-            powerRangeMessage.textContent = 'Loading power history…';
-          }
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error('Failed to load power history');
-          }
-          const data = await response.json();
-          const switched = updatePowerRangeAvailability(data);
-          if (switched) {
-            lastPowerHistoryRefresh = 0;
-            setTimeout(() => {
-              refreshPowerHistory(true).catch((err) => console.error(err));
-            }, 0);
-            return;
-          }
-          applyPowerHistoryResponse(data);
-        })();
-
-        powerHistoryRequest = requestPromise;
-        try {
-          await requestPromise;
-        } catch (error) {
-          console.error(error);
-          if (powerRangeMessage) {
-            powerRangeMessage.textContent = error.message || 'Power history unavailable.';
-          }
-          powerSummaryTotal.textContent = '-';
-          powerSummaryAverage.textContent = '-';
-          renderPowerChart(document.getElementById('powerChart'), []);
-        } finally {
-          powerHistoryRequest = null;
-        }
-      }
-
-      function formatTimestamp(epochSeconds) {
-        const numeric = Number(epochSeconds);
-        if (!Number.isFinite(numeric)) {
-          return '-';
-        }
-        const date = new Date(numeric * 1000);
-        const pad = (value) => String(value).padStart(2, '0');
-        const year = date.getFullYear();
-        const month = pad(date.getMonth() + 1);
-        const day = pad(date.getDate());
-        const hours = pad(date.getHours());
-        const minutes = pad(date.getMinutes());
-        const seconds = pad(date.getSeconds());
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-      }
-
-      function toFixedOrDash(value, digits = 1) {
-        const numeric = Number(value);
-        return Number.isFinite(numeric) ? numeric.toFixed(digits) : '-';
-      }
-
-      function formatOffsetHours(value) {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric)) {
-          return '';
-        }
-        const rounded = Math.round(numeric * 100) / 100;
-        if (Number.isInteger(rounded)) {
-          return String(rounded);
-        }
-        return rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-      }
-
-      if (timezoneOffsetInput) {
-        const detectedFormatted = formatOffsetHours(detectedTimezoneOffsetHours);
-        if (detectedFormatted !== '') {
-          timezoneOffsetInput.placeholder = detectedFormatted;
-          timezoneOffsetInput.title = `Detected from browser: ${detectedFormatted} hours from UTC`;
-          timezoneOffsetInput.value = detectedFormatted;
-        }
-      }
-
-      function formatCompressorTimeout(value) {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric)) {
-          return '-';
-        }
-        if (numeric <= 0) {
-          return 'Ready';
-        }
-        if (numeric < 60) {
-          return `${numeric.toFixed(1)} s`;
-        }
-        const minutes = Math.floor(numeric / 60);
-        const seconds = Math.round(numeric % 60);
-        const minuteLabel = minutes === 1 ? 'min' : 'mins';
-        const secondLabel = seconds === 1 ? 'sec' : 'secs';
-        if (seconds === 0) {
-          return `${minutes} ${minuteLabel}`;
-        }
-        return `${minutes} ${minuteLabel} ${seconds} ${secondLabel}`;
-      }
-
-      function formatUptimeSeconds(value) {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric) || numeric < 0) {
-          return '-';
-        }
-        const totalSeconds = Math.floor(numeric);
-        const days = Math.floor(totalSeconds / 86400);
-        const hours = Math.floor((totalSeconds % 86400) / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        const parts = [];
-        if (days > 0) {
-          parts.push(`${days}d`);
-        }
-        if (hours > 0 || parts.length > 0) {
-          parts.push(`${hours}h`);
-        }
-        if (minutes > 0 || parts.length > 0) {
-          parts.push(`${minutes}m`);
-        }
-        if (parts.length === 0 || seconds > 0) {
-          parts.push(`${seconds}s`);
-        }
-        return parts.join(' ');
-      }
-
-      function renderCurrentTime() {
-        const currentTimeElement = document.getElementById('currentTime');
-        if (!currentTimeElement) {
-          return;
-        }
-        let display = '-';
-        if (Number.isFinite(currentTimeState.epochSeconds)) {
-          const elapsedMs = Date.now() - (currentTimeState.receivedAtMs ?? 0);
-          const computedEpoch = currentTimeState.epochSeconds + elapsedMs / 1000;
-          display = formatTimestamp(computedEpoch);
-        } else if (currentTimeState.formatted) {
-          display = currentTimeState.formatted;
-        }
-        currentTimeElement.textContent = display;
-      }
-
-      function updateStatusBar(data) {
-        const wifiInfo = document.getElementById('wifiInfo');
-        wifiInfo.textContent = data.ssid && data.ip ? `${data.ssid} @ ${data.ip}` : '-';
-
-        const epochValue = Number(data.currentTimeEpoch);
-        const timeString =
-          typeof data.currentTime === 'string' ? data.currentTime.trim() : '';
-        const uptimeSecondsValue = Number(data.uptimeSeconds);
-        const uptimeMs =
-          Number.isFinite(uptimeSecondsValue) && uptimeSecondsValue >= 0
-            ? uptimeSecondsValue * 1000
-            : null;
-        const now = Date.now();
-        const epochSeconds = Number.isFinite(epochValue) && epochValue > 0 ? epochValue : null;
-        const clockOffsetCandidate =
-          epochSeconds !== null && Number.isFinite(uptimeMs)
-            ? epochSeconds * 1000 - uptimeMs
-            : null;
-        currentTimeState = {
-          epochSeconds,
-          receivedAtMs: epochSeconds !== null ? now : null,
-          formatted: timeString !== '' ? timeString : null,
-          uptimeMs: Number.isFinite(uptimeMs) ? uptimeMs : null,
-          uptimeReceivedAtMs: Number.isFinite(uptimeMs) ? now : null,
-          clockOffsetMs: Number.isFinite(clockOffsetCandidate) ? clockOffsetCandidate : null,
-        };
-        if (currentTimeState.formatted === null && currentTimeState.epochSeconds === null) {
-          currentTimeState.receivedAtMs = null;
-        }
-        if (!Number.isFinite(currentTimeState.uptimeMs)) {
-          currentTimeState.uptimeMs = null;
-          currentTimeState.uptimeReceivedAtMs = null;
-        }
-        renderCurrentTime();
-
-        document.getElementById('systemMode').textContent =
-          systemModeLabels[data.systemMode] || data.systemMode || '-';
-        document.getElementById('fanMode').textContent =
-          fanModeLabels[data.fanMode] || data.fanMode || '-';
-        document.getElementById('fanSpeed').textContent =
-          fanSpeedLabels[data.fanSpeed] || data.fanSpeed || '-';
-        document.getElementById('compressor').textContent = data.compressor ? 'Running' : 'Idle';
-        document.getElementById('compressorTimeout').textContent =
-          formatCompressorTimeout(data.compressorTimeout);
-        document.getElementById('compressorOffTimeout').textContent =
-          formatCompressorTimeout(data.compressorOffTimeout);
-        document.getElementById('compressorCooldown').textContent =
-          data.compressorCooldown ? 'Active' : 'Idle';
-        document.getElementById('compressorCooldownRemaining').textContent =
-          formatCompressorTimeout(data.compressorCooldownRemaining);
-        if (schedulingStateElement) {
-          schedulingStateElement.textContent = data.scheduling ? 'Enabled' : 'Disabled';
-        }
-        if (scheduleHoldStateElement) {
-          const remainingSeconds = Number(data.scheduleIgnoreRemainingSeconds);
-          const remainingMs = Number.isFinite(remainingSeconds) ? remainingSeconds * 1000 : 0;
-          if (data.scheduleIgnoreActive && remainingMs > 0) {
-            scheduleHoldStateElement.textContent = `${describeDuration(remainingMs)} remaining`;
-          } else {
-            scheduleHoldStateElement.textContent = 'Inactive';
-          }
-        }
-        updateScheduleIgnoreInteractivity(Boolean(data.scheduling));
-        document.getElementById('target').textContent = toFixedOrDash(data.target);
-        document.getElementById('hysteresis').textContent = toFixedOrDash(data.hysteresis);
-        document.getElementById('compressorTempLimit').textContent = toFixedOrDash(
-          data.compressorTempLimit,
-        );
-        document.getElementById('compressorMinAmbient').textContent = toFixedOrDash(
-          data.compressorMinAmbient,
-        );
-        document.getElementById('compressorCooldownTemp').textContent = toFixedOrDash(
-          data.compressorCooldownTemp,
-        );
-        document.getElementById('compressorCooldownMinutes').textContent = toFixedOrDash(
-          data.compressorCooldownMinutes,
-          2,
-        );
-        document.getElementById('ambient').textContent = toFixedOrDash(data.ambient);
-        document.getElementById('coil').textContent = toFixedOrDash(data.coil);
-        document.getElementById('energy').textContent = toFixedOrDash(data.energyWh);
-        const uptimeElement = document.getElementById('uptime');
-        if (uptimeElement) {
-          uptimeElement.textContent = formatUptimeSeconds(data.uptimeSeconds);
-        }
-      }
-
-      function updateConfigForm(data) {
-        document.getElementById('targetInput').value = Number(data.target).toFixed(1);
-        document.getElementById('hysteresisInput').value = Number(data.hysteresis).toFixed(1);
-        const compressorLimitValue = Number(data.compressorTempLimit);
-        document.getElementById('compressorTempLimitInput').value = Number.isFinite(
-          compressorLimitValue,
-        )
-          ? compressorLimitValue.toFixed(1)
-          : '';
-        const compressorMinAmbientValue = Number(data.compressorMinAmbient);
-        document.getElementById('compressorMinAmbientInput').value = Number.isFinite(
-          compressorMinAmbientValue,
-        )
-          ? compressorMinAmbientValue.toFixed(1)
-          : '';
-        const compressorCooldownTempValue = Number(data.compressorCooldownTemp);
-        document.getElementById('compressorCooldownTempInput').value = Number.isFinite(
-          compressorCooldownTempValue,
-        )
-          ? compressorCooldownTempValue.toFixed(1)
-          : '';
-        const compressorCooldownMinutesValue = Number(data.compressorCooldownMinutes);
-        document.getElementById('compressorCooldownMinutesInput').value = Number.isFinite(
-          compressorCooldownMinutesValue,
-        )
-          ? compressorCooldownMinutesValue.toFixed(2)
-          : '';
-        document.getElementById('fanModeInput').value = data.fanMode;
-        document.getElementById('systemModeInput').value = data.systemMode;
-        document.getElementById('schedulingInput').checked = Boolean(data.scheduling);
-        if (timezoneOffsetInput) {
-          const timezoneOffsetValue = Number(data.timezoneOffset);
-          const detectedFormatted = formatOffsetHours(detectedTimezoneOffsetHours);
-          let displayValue = '';
-          if (Number.isFinite(timezoneOffsetValue)) {
-            displayValue = formatOffsetHours(timezoneOffsetValue);
-          }
-          if (!timezoneOffsetAutoApplied) {
-            const shouldUseDetected =
-              !Number.isFinite(timezoneOffsetValue) || Math.abs(timezoneOffsetValue) < 0.01;
-            if (shouldUseDetected && detectedFormatted !== '') {
-              displayValue = detectedFormatted;
-            }
-            timezoneOffsetAutoApplied = true;
-          }
-          if (displayValue === '' && detectedFormatted !== '') {
-            displayValue = detectedFormatted;
-          }
-          timezoneOffsetInput.value = displayValue;
-        }
-        document.getElementById('weekdayInput').value = scheduleToText(data.weekday || []);
-        document.getElementById('weekendInput').value = scheduleToText(data.weekend || []);
-      }
-
-      function updateLogs(data) {
-        renderTemperatureChart(
-          document.getElementById('temperatureChart'),
-          data && Array.isArray(data.temperatureLog) ? data.temperatureLog : [],
-        );
-      }
-
-      async function refreshState(options = {}) {
-        const { updateForm = false } = options;
-        const data = await fetchState();
-        updateStatusBar(data);
-        updateLogs(data);
-        if (updateForm) {
-          updateConfigForm(data);
-        }
-        refreshPowerHistory().catch((err) => console.error(err));
-      }
-
-      function handleRefreshError(error, showToUser) {
-        console.error(error);
-        if (showToUser) {
-          configStatus.textContent = error.message;
-          configStatus.style.color = '#b00020';
-        }
-      }
-
-      function setScheduleIgnoreBusy(isBusy) {
-        if (!scheduleIgnoreButton) {
-          return;
-        }
-        scheduleIgnoreButton.dataset.busy = isBusy ? 'true' : 'false';
-        updateScheduleIgnoreInteractivity();
-      }
-
-      function updateScheduleIgnoreInteractivity(schedulingEnabledValue) {
-        if (typeof schedulingEnabledValue === 'boolean') {
-          latestSchedulingEnabled = schedulingEnabledValue;
-        }
-        if (!scheduleIgnoreButton) {
-          return;
-        }
-        const busy = scheduleIgnoreButton.dataset.busy === 'true';
-        const disableControls = busy || !latestSchedulingEnabled;
-        scheduleIgnoreButton.disabled = disableControls;
-        if (scheduleIgnoreSelect) {
-          scheduleIgnoreSelect.disabled = disableControls;
-        }
-      }
-
-      function buildConfigPayload(extraParams = null) {
-        const formData = new FormData(configForm);
-        if (!configForm.scheduling.checked) {
-          formData.set('scheduling', 'false');
-        }
-        const payload = new URLSearchParams(formData);
-        if (extraParams && typeof extraParams === 'object') {
-          Object.entries(extraParams).forEach(([key, value]) => {
-            if (typeof value !== 'undefined' && value !== null) {
-              payload.set(key, String(value));
-            }
-          });
-        }
-        return payload;
-      }
-
-      async function sendScheduleIgnoreRequest(minutes) {
-        const payload = buildConfigPayload({ scheduleIgnoreMinutes: minutes });
-        const response = await fetch('/api/config', {
-          method: 'POST',
-          body: payload,
-        });
-        if (!response.ok) {
-          throw new Error('Failed to update schedule hold');
-        }
-      }
-
-      if (scheduleIgnoreButton && scheduleIgnoreSelect) {
-        scheduleIgnoreButton.addEventListener('click', async () => {
-          const minutes = Number(scheduleIgnoreSelect.value);
-          if (!Number.isFinite(minutes) || minutes <= 0) {
-            if (scheduleIgnoreMessage) {
-              scheduleIgnoreMessage.textContent = 'Select a duration to ignore the schedule.';
-              scheduleIgnoreMessage.style.color = '#b00020';
-            }
-            return;
-          }
-          setScheduleIgnoreBusy(true);
-          if (scheduleIgnoreMessage) {
-            scheduleIgnoreMessage.textContent = 'Applying hold…';
-            scheduleIgnoreMessage.style.color = '#333';
-          }
-          try {
-            await sendScheduleIgnoreRequest(minutes);
-            if (scheduleIgnoreMessage) {
-              scheduleIgnoreMessage.textContent = `Ignoring schedule for ${minutes} minutes.`;
-              scheduleIgnoreMessage.style.color = '#006400';
-            }
-            await refreshState();
-          } catch (err) {
-            if (scheduleIgnoreMessage) {
-              scheduleIgnoreMessage.textContent =
-                err?.message || 'Failed to update schedule hold.';
-              scheduleIgnoreMessage.style.color = '#b00020';
-            }
-          } finally {
-            setScheduleIgnoreBusy(false);
-          }
-        });
-      }
-      updateScheduleIgnoreInteractivity(false);
-
-      configForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const payload = buildConfigPayload();
-        configStatus.textContent = 'Saving…';
-        configStatus.style.color = '#333';
-        try {
-          const response = await fetch('/api/config', {
-            method: 'POST',
-            body: payload,
-          });
-          if (!response.ok) {
-            throw new Error('Failed to save configuration');
-          }
-          await refreshState({ updateForm: true });
-          configStatus.textContent = 'Configuration saved.';
-          configStatus.style.color = '#006400';
-        } catch (err) {
-          configStatus.textContent = err.message;
-          configStatus.style.color = '#b00020';
-        }
-      });
-
-      setActivePowerRange(selectedPowerRange);
-      powerRangeButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-          if (button.disabled) {
-            return;
-          }
-          const range = button.dataset.powerRange;
-          if (range && range !== selectedPowerRange) {
-            selectedPowerRange = range;
-            setActivePowerRange(selectedPowerRange);
-            refreshPowerHistory(true).catch((err) => console.error(err));
-          }
-        });
-      });
-
-      if (powerResetButton) {
-        powerResetButton.addEventListener('click', async () => {
-          const confirmed = window.confirm(
-            'Reset power history? This will remove all recorded power log entries.',
-          );
-          if (!confirmed) {
-            return;
-          }
-
-          const originalLabel = powerResetButton.textContent.trim() || 'Reset power log';
-          powerResetButton.disabled = true;
-          powerResetButton.textContent = 'Resetting…';
-
-          try {
-            const response = await fetch('/api/power-log', { method: 'DELETE' });
-            if (!response.ok) {
-              throw new Error('Failed to reset power log');
-            }
-
-            if (powerRangeMessage) {
-              powerRangeMessage.textContent = 'Power history cleared.';
-            }
-            powerSummaryTotal.textContent = '-';
-            powerSummaryAverage.textContent = '-';
-            renderPowerChart(document.getElementById('powerChart'), []);
-            lastPowerHistoryRefresh = 0;
-            await refreshPowerHistory(true);
-          } catch (err) {
-            console.error(err);
-            const message = err && err.message ? err.message : 'Failed to reset power log.';
-            if (powerRangeMessage) {
-              powerRangeMessage.textContent = message;
-            }
-            window.alert(message);
-          } finally {
-            powerResetButton.disabled = false;
-            powerResetButton.textContent = originalLabel;
-          }
-        });
-      }
-
-      (async () => {
-        try {
-          await refreshState({ updateForm: true });
-          await refreshPowerHistory(true);
-        } catch (err) {
-          handleRefreshError(err, true);
-        }
-      })();
-
-      renderCurrentTime();
-      setInterval(renderCurrentTime, 1000);
-      setInterval(() => {
-        refreshState().catch((err) => handleRefreshError(err, false));
-      }, 5000);
-    </script>
-  </body>
-</html>)rawliteral";
+// Auto-generated by generate_web_interface.py. Do not edit manually.
+static const size_t kWebInterfaceHtmlBrotliLength = 12825;
+static const uint8_t kWebInterfaceHtmlBrotli[] PROGMEM = {
+  91, 29, 88, 1, 192, 122, 128, 39, 34, 15, 250, 137, 24, 214, 157, 254, 87,
+  198, 125, 197, 154, 86, 121, 104, 29, 85, 138, 221, 116, 84, 128, 70, 140,
+  17, 146, 204, 38, 200, 201, 16, 207, 27, 39, 122, 132, 30, 84, 114, 23, 104,
+  91, 236, 253, 128, 141, 116, 96, 3, 147, 53, 224, 164, 41, 44, 255, 91, 106,
+  117, 186, 62, 123, 118, 23, 168, 66, 108, 200, 80, 110, 77, 74, 234, 232,
+  137, 238, 36, 27, 100, 171, 26, 35, 21, 208, 107, 81, 179, 255, 126, 233,
+  211, 113, 172, 180, 105, 85, 243, 158, 249, 86, 122, 14, 40, 201, 244, 110,
+  1, 67, 244, 6, 148, 12, 16, 169, 76, 167, 57, 108, 249, 245, 41, 176, 229,
+  243, 151, 183, 170, 83, 118, 0, 116, 0, 254, 115, 19, 149, 125, 162, 57, 83,
+  3, 44, 43, 65, 48, 204, 148, 41, 240, 207, 24, 110, 83, 53, 247, 95, 38, 36,
+  29, 23, 62, 31, 4, 171, 172, 203, 214, 234, 212, 10, 44, 147, 17, 211, 224,
+  154, 166, 248, 223, 251, 166, 165, 228, 193, 217, 194, 58, 147, 203, 185, 76,
+  65, 34, 207, 41, 202, 154, 32, 49, 190, 114, 226, 221, 123, 223, 41, 161,
+  241, 27, 18, 65, 163, 29, 130, 51, 235, 28, 119, 100, 214, 102, 239, 186,
+  255, 187, 127, 55, 176, 4, 64, 178, 72, 144, 179, 142, 148, 51, 46, 204, 109,
+  166, 52, 105, 112, 40, 103, 35, 133, 10, 21, 74, 221, 165, 246, 87, 56, 186,
+  217, 45, 195, 244, 31, 151, 54, 71, 27, 199, 206, 246, 106, 131, 16, 151,
+  184, 5, 166, 253, 243, 227, 168, 252, 125, 17, 154, 131, 220, 7, 0, 158, 229,
+  188, 150, 0, 1, 120, 245, 245, 203, 39, 195, 140, 110, 245, 46, 250, 22, 195,
+  236, 42, 43, 185, 6, 89, 118, 137, 170, 97, 162, 24, 7, 91, 255, 53, 11, 170,
+  72, 26, 226, 159, 55, 17, 167, 233, 206, 183, 57, 68, 104, 126, 234, 199,
+  216, 91, 47, 25, 27, 196, 130, 148, 147, 27, 192, 177, 26, 122, 188, 15, 247,
+  117, 47, 165, 155, 34, 241, 155, 185, 7, 106, 30, 218, 130, 127, 10, 15, 158,
+  125, 16, 80, 157, 221, 227, 133, 121, 233, 232, 194, 158, 165, 197, 222, 44,
+  185, 185, 245, 243, 187, 83, 67, 72, 89, 203, 50, 126, 71, 179, 224, 174,
+  114, 130, 205, 147, 252, 230, 164, 58, 115, 28, 9, 68, 240, 105, 16, 251, 43,
+  180, 81, 135, 26, 171, 59, 56, 206, 102, 100, 138, 172, 126, 115, 153, 179,
+  41, 204, 54, 131, 54, 171, 155, 80, 195, 148, 199, 238, 147, 46, 18, 140, 26,
+  182, 143, 45, 223, 1, 179, 155, 2, 140, 98, 121, 127, 238, 221, 246, 15, 30,
+  182, 127, 176, 254, 178, 110, 185, 26, 255, 231, 88, 235, 16, 111, 242, 52,
+  237, 221, 242, 41, 184, 59, 62, 4, 215, 54, 48, 93, 172, 70, 72, 147, 109,
+  38, 15, 38, 6, 117, 79, 165, 5, 245, 193, 62, 187, 69, 170, 9, 54, 22, 93,
+  51, 37, 168, 233, 227, 115, 40, 71, 115, 42, 4, 159, 36, 27, 99, 61, 104,
+  205, 94, 210, 128, 173, 223, 255, 57, 91, 147, 253, 107, 111, 172, 238, 89,
+  209, 161, 32, 77, 248, 238, 224, 103, 145, 40, 151, 77, 240, 9, 158, 251,
+  152, 232, 226, 101, 60, 173, 246, 248, 181, 40, 218, 87, 123, 170, 137, 91,
+  8, 137, 159, 197, 219, 110, 254, 210, 43, 228, 87, 79, 53, 87, 161, 152, 9,
+  157, 6, 182, 177, 89, 81, 240, 253, 168, 188, 39, 237, 193, 0, 115, 207, 105,
+  255, 90, 37, 127, 187, 179, 21, 43, 94, 207, 6, 198, 68, 213, 167, 85, 32,
+  53, 208, 87, 30, 141, 236, 117, 90, 121, 51, 223, 59, 221, 33, 33, 114, 17,
+  63, 39, 185, 113, 243, 25, 54, 133, 121, 18, 237, 240, 181, 168, 251, 201,
+  77, 232, 52, 175, 25, 40, 231, 122, 75, 59, 132, 192, 101, 211, 223, 94, 141,
+  91, 59, 192, 245, 189, 207, 125, 231, 195, 176, 245, 127, 240, 47, 174, 91,
+  6, 113, 251, 219, 32, 147, 97, 28, 27, 106, 169, 160, 113, 126, 138, 212,
+  252, 55, 150, 164, 5, 52, 167, 1, 213, 42, 87, 40, 201, 230, 97, 180, 54, 4,
+  87, 237, 20, 109, 89, 199, 226, 70, 201, 17, 215, 39, 245, 87, 51, 247, 175,
+  157, 184, 165, 53, 122, 253, 140, 74, 200, 12, 103, 244, 64, 130, 180, 38,
+  72, 200, 253, 37, 150, 23, 10, 229, 171, 156, 167, 60, 63, 103, 250, 77, 153,
+  211, 250, 173, 88, 107, 251, 167, 248, 51, 110, 65, 236, 44, 223, 143, 188,
+  255, 211, 140, 110, 243, 91, 189, 167, 223, 30, 78, 16, 224, 26, 227, 240,
+  14, 49, 239, 238, 96, 78, 125, 47, 63, 119, 23, 115, 200, 147, 91, 246, 245,
+  115, 216, 6, 183, 118, 83, 205, 188, 155, 248, 54, 243, 169, 253, 243, 141,
+  191, 54, 47, 213, 229, 95, 80, 181, 185, 237, 118, 0, 6, 194, 41, 105, 1,
+  151, 100, 150, 4, 25, 192, 210, 158, 105, 149, 18, 232, 170, 223, 74, 19,
+  255, 225, 81, 23, 231, 245, 39, 84, 173, 103, 169, 236, 97, 223, 78, 156,
+  156, 104, 126, 34, 216, 246, 66, 132, 81, 130, 14, 133, 169, 49, 51, 250,
+  113, 20, 151, 110, 227, 18, 127, 2, 139, 84, 105, 164, 18, 120, 229, 195,
+  197, 38, 219, 141, 205, 194, 214, 228, 163, 103, 63, 236, 43, 169, 50, 15,
+  23, 78, 181, 117, 85, 254, 88, 17, 116, 128, 210, 85, 157, 90, 14, 78, 231,
+  140, 170, 141, 149, 100, 157, 227, 80, 126, 206, 158, 144, 67, 89, 99, 70,
+  201, 188, 211, 227, 203, 210, 250, 124, 104, 253, 45, 78, 205, 85, 150, 39,
+  202, 83, 246, 0, 46, 126, 190, 177, 44, 57, 196, 39, 56, 161, 235, 165, 67,
+  64, 216, 14, 135, 91, 233, 197, 57, 175, 150, 163, 255, 162, 25, 94, 196, 47,
+  74, 86, 167, 98, 244, 102, 210, 191, 254, 100, 67, 188, 56, 203, 139, 210,
+  157, 145, 110, 87, 30, 229, 103, 173, 63, 149, 233, 213, 51, 108, 133, 240,
+  224, 179, 39, 149, 165, 82, 178, 0, 210, 182, 5, 252, 98, 30, 250, 71, 38,
+  247, 30, 173, 72, 114, 189, 251, 143, 163, 198, 13, 30, 224, 235, 48, 209,
+  161, 68, 177, 196, 154, 86, 127, 17, 131, 31, 213, 135, 204, 65, 137, 196,
+  122, 142, 41, 246, 115, 222, 145, 240, 95, 155, 28, 9, 178, 25, 112, 208, 2,
+  42, 128, 24, 116, 56, 57, 235, 91, 208, 79, 154, 116, 235, 206, 82, 219, 69,
+  137, 113, 114, 52, 60, 19, 65, 31, 58, 181, 81, 179, 237, 186, 170, 211, 210,
+  147, 150, 242, 209, 244, 136, 175, 61, 97, 138, 80, 194, 132, 150, 32, 195,
+  121, 5, 144, 215, 144, 18, 27, 142, 74, 230, 84, 132, 71, 78, 208, 10, 29,
+  16, 124, 138, 79, 14, 46, 58, 229, 57, 107, 174, 244, 93, 209, 178, 1, 47,
+  199, 196, 94, 138, 156, 40, 43, 113, 80, 223, 171, 221, 0, 75, 120, 10, 53,
+  216, 208, 95, 211, 78, 206, 149, 15, 227, 9, 218, 148, 166, 174, 40, 239,
+  173, 165, 211, 204, 204, 135, 197, 48, 116, 218, 65, 143, 5, 46, 195, 117,
+  131, 167, 205, 200, 108, 111, 209, 154, 206, 197, 108, 163, 185, 192, 43,
+  126, 247, 174, 207, 253, 70, 81, 134, 122, 60, 118, 244, 97, 60, 63, 196,
+  166, 10, 251, 228, 180, 247, 246, 249, 158, 231, 104, 59, 176, 37, 67, 186,
+  91, 74, 80, 34, 219, 29, 232, 75, 145, 31, 146, 191, 72, 80, 216, 225, 161,
+  133, 50, 116, 127, 129, 127, 229, 242, 204, 190, 126, 3, 167, 101, 30, 220,
+  174, 165, 171, 219, 27, 125, 191, 115, 46, 120, 57, 18, 215, 215, 251, 28,
+  189, 148, 169, 212, 99, 154, 132, 175, 131, 16, 1, 212, 84, 183, 185, 45, 20,
+  96, 47, 63, 211, 50, 59, 255, 192, 16, 161, 111, 79, 71, 154, 119, 2, 130,
+  48, 133, 11, 64, 18, 1, 253, 0, 124, 10, 255, 93, 3, 186, 33, 234, 227, 125,
+  110, 230, 139, 23, 185, 23, 130, 192, 103, 21, 216, 199, 11, 237, 177, 19,
+  223, 16, 154, 0, 189, 117, 65, 234, 44, 144, 219, 135, 35, 212, 102, 58, 15,
+  102, 211, 141, 198, 200, 251, 222, 116, 199, 178, 43, 247, 207, 160, 128, 76,
+  142, 123, 27, 153, 119, 124, 248, 239, 205, 215, 110, 88, 143, 180, 72, 1,
+  216, 158, 143, 100, 128, 104, 235, 47, 245, 153, 169, 137, 123, 224, 90, 196,
+  208, 181, 55, 192, 51, 127, 211, 21, 83, 138, 121, 35, 183, 13, 145, 92, 147,
+  160, 197, 142, 9, 219, 132, 51, 40, 107, 79, 48, 47, 127, 159, 150, 165, 143,
+  9, 184, 210, 217, 70, 243, 93, 2, 54, 119, 241, 244, 188, 63, 162, 205, 131,
+  63, 30, 147, 13, 46, 39, 145, 187, 1, 81, 143, 73, 221, 219, 172, 119, 137,
+  206, 76, 135, 133, 242, 90, 139, 162, 186, 186, 166, 184, 190, 162, 236, 152,
+  139, 78, 169, 32, 26, 15, 77, 147, 75, 50, 172, 190, 240, 161, 246, 205, 161,
+  97, 18, 251, 1, 154, 192, 36, 241, 34, 45, 247, 226, 39, 221, 195, 99, 105,
+  172, 130, 212, 22, 159, 170, 43, 151, 63, 202, 110, 99, 8, 54, 60, 26, 234,
+  50, 99, 196, 215, 144, 45, 104, 52, 204, 42, 143, 184, 242, 123, 172, 110,
+  235, 69, 243, 72, 107, 32, 64, 92, 29, 90, 61, 228, 125, 143, 46, 186, 240,
+  105, 68, 78, 67, 122, 247, 253, 2, 189, 85, 198, 16, 47, 186, 118, 86, 83,
+  176, 54, 12, 243, 56, 140, 198, 220, 94, 186, 239, 1, 250, 62, 180, 225, 105,
+  90, 134, 197, 37, 132, 67, 46, 80, 40, 185, 104, 41, 131, 47, 195, 27, 149,
+  38, 210, 206, 170, 169, 252, 112, 171, 86, 44, 189, 106, 73, 15, 38, 247,
+  230, 135, 74, 65, 179, 68, 232, 182, 11, 183, 23, 63, 172, 153, 66, 221, 252,
+  91, 203, 123, 208, 188, 17, 157, 103, 61, 149, 184, 254, 38, 118, 5, 76, 138,
+  83, 220, 42, 21, 160, 73, 53, 82, 6, 6, 218, 86, 109, 203, 210, 89, 48, 24,
+  33, 161, 126, 79, 66, 230, 119, 105, 215, 225, 221, 241, 188, 107, 82, 94,
+  252, 93, 15, 95, 19, 79, 116, 199, 39, 5, 195, 157, 131, 245, 113, 41, 125,
+  13, 23, 142, 67, 254, 138, 198, 198, 195, 216, 16, 210, 104, 120, 115, 221,
+  245, 252, 55, 0, 168, 55, 14, 101, 223, 114, 114, 78, 210, 75, 103, 31, 55,
+  57, 129, 34, 233, 73, 49, 45, 149, 157, 16, 59, 194, 194, 156, 169, 15, 121,
+  47, 235, 214, 59, 251, 223, 249, 208, 126, 119, 214, 80, 18, 253, 165, 210,
+  26, 119, 57, 87, 99, 101, 114, 96, 11, 183, 29, 184, 97, 169, 223, 196, 198,
+  146, 114, 187, 202, 248, 228, 197, 20, 220, 59, 77, 57, 154, 227, 237, 248,
+  115, 199, 199, 158, 45, 211, 13, 186, 64, 109, 252, 93, 48, 71, 137, 2, 115,
+  182, 168, 172, 202, 72, 172, 132, 167, 225, 90, 113, 168, 198, 253, 154, 186,
+  124, 228, 8, 164, 165, 149, 70, 141, 57, 7, 53, 0, 112, 28, 54, 227, 218,
+  117, 169, 160, 184, 107, 219, 130, 132, 130, 185, 245, 233, 96, 237, 61, 229,
+  123, 187, 215, 15, 244, 231, 233, 226, 252, 215, 254, 132, 255, 75, 181, 206,
+  252, 201, 119, 180, 163, 142, 230, 246, 234, 135, 218, 90, 248, 163, 205,
+  159, 93, 235, 184, 192, 198, 79, 46, 132, 114, 50, 231, 231, 201, 235, 201,
+  27, 1, 211, 103, 87, 128, 211, 90, 51, 165, 240, 137, 34, 241, 158, 41, 4,
+  20, 225, 10, 45, 151, 160, 248, 176, 150, 61, 243, 159, 223, 225, 200, 47,
+  56, 98, 209, 12, 63, 26, 150, 118, 138, 207, 32, 159, 242, 103, 208, 159, 10,
+  103, 48, 156, 138, 103, 48, 158, 74, 103, 48, 157, 202, 103, 48, 159, 42,
+  103, 176, 156, 26, 206, 196, 0, 235, 164, 91, 159, 18, 31, 113, 103, 210,
+  173, 49, 42, 52, 159, 253, 225, 244, 28, 167, 240, 186, 50, 48, 239, 112, 61,
+  79, 229, 59, 73, 45, 147, 75, 117, 98, 84, 237, 14, 81, 181, 166, 206, 48,
+  21, 255, 106, 31, 208, 114, 150, 36, 128, 56, 207, 163, 198, 179, 181, 99,
+  84, 225, 6, 91, 231, 90, 182, 190, 28, 117, 51, 208, 156, 16, 150, 180, 195,
+  44, 253, 146, 183, 184, 204, 109, 239, 158, 142, 228, 76, 47, 66, 100, 164,
+  230, 8, 27, 208, 234, 24, 45, 84, 144, 100, 81, 195, 145, 10, 135, 32, 162,
+  61, 40, 141, 75, 230, 252, 110, 93, 93, 251, 247, 163, 180, 58, 233, 54, 123,
+  75, 255, 73, 226, 101, 115, 14, 151, 207, 154, 94, 121, 229, 213, 35, 242,
+  89, 241, 121, 55, 159, 138, 20, 218, 67, 145, 217, 163, 186, 223, 49, 138,
+  254, 149, 185, 96, 249, 224, 42, 95, 124, 211, 5, 102, 254, 5, 34, 250, 187,
+  172, 23, 152, 219, 11, 205, 213, 94, 170, 200, 25, 186, 172, 251, 71, 31,
+  125, 143, 197, 231, 223, 85, 154, 248, 235, 252, 49, 207, 27, 205, 142, 239,
+  241, 11, 151, 216, 52, 24, 204, 103, 199, 221, 249, 189, 126, 21, 123, 232,
+  108, 54, 231, 48, 74, 164, 181, 207, 45, 108, 163, 188, 156, 181, 141, 23,
+  37, 144, 139, 159, 57, 182, 214, 72, 160, 169, 160, 211, 138, 160, 145, 197,
+  173, 153, 169, 149, 200, 57, 38, 109, 51, 164, 16, 129, 201, 99, 236, 11,
+  195, 200, 77, 100, 133, 238, 168, 129, 216, 1, 247, 73, 87, 30, 56, 163, 54,
+  171, 181, 25, 237, 191, 221, 154, 175, 103, 171, 136, 67, 107, 109, 130, 183,
+  7, 40, 166, 171, 183, 66, 197, 20, 17, 23, 48, 10, 128, 180, 100, 147, 230,
+  44, 173, 2, 40, 130, 243, 150, 14, 189, 90, 216, 71, 225, 126, 7, 194, 202,
+  69, 167, 144, 75, 23, 149, 194, 89, 99, 67, 176, 250, 139, 16, 152, 224, 82,
+  68, 156, 136, 133, 26, 253, 4, 111, 36, 228, 68, 44, 165, 65, 80, 240, 163,
+  136, 200, 61, 61, 63, 157, 142, 145, 80, 219, 52, 242, 165, 187, 239, 245,
+  235, 9, 204, 117, 93, 203, 157, 249, 178, 177, 161, 245, 94, 152, 234, 22, 9,
+  125, 247, 119, 250, 222, 81, 78, 158, 38, 72, 31, 68, 148, 166, 71, 113, 193,
+  66, 21, 136, 73, 11, 53, 247, 2, 46, 41, 233, 20, 11, 36, 3, 98, 20, 165, 77,
+  37, 129, 67, 65, 186, 163, 239, 21, 211, 128, 176, 157, 253, 197, 186, 172,
+  17, 93, 41, 154, 16, 144, 233, 213, 223, 57, 51, 66, 37, 98, 107, 198, 247,
+  184, 46, 162, 170, 71, 120, 97, 190, 44, 114, 233, 136, 244, 132, 179, 251,
+  157, 66, 95, 63, 120, 35, 225, 67, 7, 108, 249, 146, 182, 218, 204, 81, 174,
+  117, 108, 80, 51, 40, 71, 187, 43, 160, 109, 112, 35, 242, 88, 214, 35, 12,
+  68, 52, 50, 43, 196, 154, 171, 151, 29, 19, 6, 231, 73, 49, 161, 94, 238,
+  214, 156, 160, 153, 95, 10, 39, 54, 70, 119, 68, 131, 17, 176, 22, 248, 182,
+  188, 2, 45, 18, 130, 121, 168, 175, 56, 150, 140, 84, 97, 11, 93, 27, 78,
+  106, 4, 154, 252, 62, 98, 156, 94, 84, 69, 197, 156, 26, 161, 189, 162, 33,
+  143, 239, 18, 155, 227, 146, 143, 183, 171, 225, 166, 62, 222, 166, 147, 160,
+  33, 183, 174, 221, 74, 108, 114, 99, 148, 44, 57, 28, 153, 39, 164, 138, 252,
+  192, 70, 9, 166, 141, 85, 180, 213, 110, 47, 29, 186, 238, 225, 214, 147,
+  174, 93, 95, 226, 245, 240, 101, 223, 235, 142, 51, 113, 55, 54, 47, 237,
+  187, 228, 212, 110, 204, 178, 196, 16, 147, 90, 43, 106, 89, 109, 28, 96,
+  173, 109, 125, 33, 170, 46, 161, 63, 175, 186, 113, 216, 236, 134, 22, 49,
+  209, 12, 71, 113, 188, 54, 182, 253, 138, 159, 228, 167, 220, 28, 246, 216,
+  236, 236, 23, 215, 98, 130, 36, 235, 216, 178, 231, 96, 169, 129, 53, 187,
+  61, 37, 192, 51, 211, 134, 94, 9, 79, 241, 9, 99, 138, 46, 19, 243, 8, 168,
+  240, 90, 212, 78, 153, 243, 149, 126, 250, 33, 62, 241, 223, 57, 154, 159,
+  140, 174, 2, 239, 199, 175, 24, 42, 127, 90, 241, 17, 117, 229, 114, 216, 3,
+  123, 193, 176, 121, 177, 3, 163, 48, 76, 91, 66, 248, 85, 3, 154, 252, 39,
+  164, 248, 43, 66, 134, 244, 39, 36, 120, 47, 187, 230, 142, 128, 8, 3, 182,
+  229, 249, 23, 84, 42, 202, 191, 32, 203, 127, 121, 185, 145, 233, 151, 150,
+  147, 128, 155, 116, 62, 238, 71, 252, 35, 109, 71, 190, 164, 6, 242, 61, 251,
+  14, 78, 109, 213, 208, 199, 21, 83, 70, 186, 255, 187, 38, 151, 213, 250,
+  148, 10, 128, 243, 244, 177, 27, 10, 159, 175, 185, 215, 189, 166, 114, 24,
+  103, 167, 251, 225, 11, 104, 23, 121, 34, 30, 145, 199, 239, 212, 28, 0, 150,
+  192, 147, 252, 227, 190, 72, 68, 78, 182, 22, 206, 106, 138, 91, 193, 46,
+  214, 240, 27, 106, 244, 182, 86, 138, 102, 130, 90, 80, 176, 17, 85, 102, 27,
+  227, 217, 210, 132, 80, 154, 127, 12, 70, 59, 188, 82, 106, 96, 163, 95, 127,
+  138, 31, 154, 182, 35, 39, 115, 251, 84, 227, 197, 2, 68, 119, 88, 217, 232,
+  183, 146, 118, 133, 141, 194, 206, 121, 229, 199, 114, 40, 204, 208, 17, 88,
+  59, 144, 33, 243, 7, 82, 74, 5, 37, 81, 88, 90, 77, 32, 225, 23, 76, 125, 16,
+  111, 8, 240, 116, 121, 99, 191, 230, 205, 110, 202, 228, 225, 192, 128, 71,
+  229, 195, 242, 24, 94, 120, 200, 144, 140, 95, 146, 227, 66, 198, 254, 231,
+  131, 167, 133, 195, 157, 206, 164, 221, 166, 134, 59, 152, 191, 43, 144, 231,
+  56, 28, 48, 175, 7, 204, 212, 252, 54, 248, 94, 22, 126, 48, 230, 21, 14, 86,
+  88, 167, 50, 26, 80, 164, 76, 18, 84, 219, 130, 146, 111, 208, 29, 252, 200,
+  185, 165, 206, 4, 189, 48, 42, 17, 196, 20, 108, 57, 218, 226, 251, 70, 85,
+  202, 200, 101, 61, 89, 4, 238, 246, 102, 198, 32, 47, 3, 2, 55, 213, 142,
+  133, 230, 242, 226, 186, 31, 249, 63, 161, 5, 22, 95, 246, 191, 82, 168, 172,
+  83, 94, 127, 20, 81, 46, 231, 73, 118, 244, 91, 204, 23, 254, 124, 85, 2,
+  211, 123, 124, 171, 107, 59, 92, 25, 151, 252, 5, 18, 5, 227, 57, 174, 46,
+  183, 183, 163, 91, 40, 192, 45, 106, 19, 120, 172, 121, 45, 58, 120, 5, 45,
+  142, 5, 187, 93, 250, 97, 145, 165, 182, 107, 169, 119, 148, 9, 250, 188, 91,
+  140, 153, 63, 243, 237, 40, 93, 241, 208, 44, 234, 115, 250, 97, 75, 206,
+  221, 229, 165, 217, 72, 20, 166, 100, 43, 112, 70, 44, 65, 14, 105, 132, 77,
+  7, 2, 67, 19, 246, 160, 231, 1, 161, 16, 93, 249, 155, 161, 61, 30, 188, 113,
+  170, 34, 39, 165, 144, 113, 227, 20, 82, 243, 162, 93, 35, 70, 156, 164, 156,
+  154, 133, 247, 97, 169, 216, 210, 217, 75, 188, 250, 188, 190, 101, 158, 14,
+  194, 13, 132, 165, 44, 16, 183, 194, 22, 134, 184, 54, 93, 1, 230, 228, 57,
+  32, 52, 10, 217, 66, 24, 157, 196, 110, 217, 94, 85, 238, 141, 85, 245, 15,
+  165, 13, 1, 61, 71, 228, 131, 230, 104, 164, 76, 21, 49, 253, 44, 36, 82, 53,
+  147, 16, 33, 244, 169, 47, 148, 81, 35, 207, 242, 163, 122, 65, 117, 98, 145,
+  96, 250, 68, 173, 145, 237, 163, 47, 99, 9, 247, 163, 38, 52, 247, 46, 143,
+  26, 200, 203, 9, 98, 233, 175, 42, 64, 136, 230, 21, 92, 194, 15, 234, 195,
+  170, 199, 89, 15, 208, 207, 30, 168, 105, 75, 251, 57, 162, 17, 93, 47, 142,
+  183, 244, 52, 123, 47, 96, 50, 7, 166, 5, 238, 203, 84, 159, 94, 218, 171,
+  250, 236, 184, 46, 31, 23, 112, 250, 221, 12, 72, 57, 0, 16, 132, 97, 231,
+  231, 212, 60, 123, 142, 202, 22, 44, 5, 97, 228, 28, 75, 7, 48, 220, 212, 6,
+  87, 4, 43, 111, 169, 150, 227, 58, 11, 247, 36, 234, 148, 172, 166, 149, 58,
+  225, 227, 3, 231, 144, 240, 36, 159, 42, 173, 115, 41, 164, 31, 27, 121, 17,
+  71, 221, 88, 183, 76, 115, 124, 241, 229, 31, 212, 21, 92, 145, 196, 45, 168,
+  98, 98, 75, 15, 101, 165, 246, 67, 121, 51, 91, 164, 15, 55, 113, 165, 80,
+  73, 52, 37, 30, 245, 53, 184, 193, 120, 214, 242, 179, 56, 17, 177, 47, 77,
+  193, 44, 159, 43, 102, 73, 78, 116, 94, 169, 154, 101, 146, 175, 228, 120,
+  166, 254, 14, 253, 33, 40, 226, 152, 37, 130, 91, 199, 174, 153, 14, 5, 30,
+  133, 61, 214, 29, 27, 153, 219, 181, 233, 151, 225, 114, 12, 186, 44, 240,
+  87, 85, 71, 170, 133, 242, 85, 28, 159, 246, 105, 127, 239, 111, 189, 239,
+  129, 55, 149, 194, 162, 2, 130, 224, 23, 137, 255, 66, 100, 66, 192, 98, 122,
+  145, 162, 12, 49, 54, 243, 142, 254, 207, 18, 47, 52, 8, 116, 72, 13, 50, 69,
+  66, 67, 189, 89, 239, 111, 214, 206, 82, 252, 17, 7, 63, 82, 60, 36, 234, 14,
+  206, 80, 110, 85, 128, 139, 232, 135, 180, 172, 149, 128, 235, 153, 45, 36,
+  199, 178, 134, 127, 66, 197, 29, 157, 38, 159, 190, 156, 38, 159, 190, 76,
+  139, 229, 61, 43, 24, 54, 32, 92, 138, 89, 20, 235, 242, 45, 192, 32, 4, 21,
+  94, 213, 174, 19, 151, 255, 195, 170, 168, 117, 250, 233, 138, 237, 11, 24,
+  181, 174, 23, 251, 240, 40, 45, 211, 23, 56, 8, 190, 135, 42, 42, 66, 63, 16,
+  63, 150, 44, 2, 216, 136, 40, 127, 209, 199, 125, 215, 200, 28, 234, 59, 254,
+  0, 12, 121, 103, 241, 117, 147, 3, 147, 219, 171, 9, 25, 203, 230, 152, 151,
+  139, 193, 75, 234, 66, 204, 227, 238, 126, 191, 17, 195, 53, 22, 71, 217,
+  225, 181, 39, 76, 88, 219, 148, 180, 186, 83, 181, 233, 156, 134, 176, 135,
+  84, 90, 44, 224, 49, 91, 64, 125, 3, 181, 199, 114, 75, 214, 241, 131, 81,
+  116, 66, 198, 233, 49, 125, 185, 229, 205, 255, 148, 55, 149, 157, 102, 113,
+  173, 29, 25, 150, 35, 144, 94, 17, 23, 212, 188, 186, 176, 43, 231, 95, 164,
+  255, 68, 125, 26, 59, 228, 123, 250, 12, 69, 222, 114, 171, 159, 1, 194, 231,
+  249, 224, 221, 26, 232, 174, 32, 71, 69, 123, 87, 4, 90, 218, 46, 142, 172,
+  177, 155, 113, 3, 248, 52, 95, 196, 92, 231, 197, 30, 102, 85, 149, 245, 240,
+  172, 208, 138, 118, 140, 191, 187, 151, 213, 186, 29, 19, 103, 112, 123, 205,
+  113, 142, 39, 214, 179, 23, 60, 146, 19, 215, 133, 84, 185, 29, 129, 127,
+  187, 116, 140, 195, 157, 139, 200, 8, 171, 29, 47, 166, 95, 162, 26, 213,
+  149, 30, 202, 17, 219, 210, 3, 237, 108, 242, 26, 178, 243, 135, 217, 128,
+  120, 204, 57, 254, 33, 112, 190, 230, 206, 162, 186, 133, 244, 31, 205, 168,
+  221, 157, 0, 17, 231, 237, 55, 227, 7, 55, 194, 23, 86, 140, 92, 219, 171,
+  200, 244, 236, 80, 107, 139, 152, 60, 150, 95, 251, 196, 194, 138, 144, 194,
+  49, 242, 135, 46, 85, 188, 177, 95, 83, 48, 140, 7, 23, 223, 33, 56, 82, 97,
+  252, 80, 223, 37, 127, 166, 209, 158, 153, 114, 134, 194, 163, 9, 107, 57,
+  234, 178, 181, 57, 203, 145, 129, 150, 214, 10, 239, 90, 10, 139, 182, 236,
+  214, 146, 33, 53, 249, 153, 243, 9, 194, 57, 202, 187, 104, 29, 165, 239,
+  218, 249, 36, 181, 21, 119, 70, 125, 154, 74, 18, 158, 111, 84, 153, 172,
+  128, 111, 85, 200, 49, 166, 1, 233, 156, 211, 113, 60, 245, 178, 155, 117,
+  252, 202, 165, 133, 30, 48, 244, 164, 160, 193, 149, 3, 59, 178, 188, 116,
+  208, 7, 42, 108, 224, 180, 13, 121, 141, 168, 29, 126, 56, 205, 56, 154, 146,
+  34, 9, 138, 136, 117, 206, 68, 135, 79, 197, 82, 207, 79, 58, 48, 158, 191,
+  58, 120, 176, 165, 245, 242, 4, 75, 113, 145, 244, 100, 219, 1, 152, 10, 127,
+  55, 14, 63, 51, 144, 196, 203, 224, 32, 199, 83, 230, 133, 134, 57, 73, 25,
+  195, 63, 178, 161, 16, 14, 62, 42, 118, 54, 2, 185, 216, 96, 0, 108, 59, 49,
+  124, 4, 201, 192, 219, 51, 203, 146, 175, 40, 210, 145, 215, 105, 104, 230,
+  156, 32, 248, 70, 62, 99, 123, 109, 88, 2, 11, 88, 43, 235, 147, 143, 168,
+  60, 4, 101, 226, 110, 122, 155, 36, 93, 175, 20, 50, 252, 72, 16, 50, 68, 10,
+  63, 37, 252, 4, 69, 255, 240, 204, 103, 12, 104, 242, 222, 88, 113, 141, 143,
+  173, 165, 46, 182, 181, 118, 247, 26, 97, 97, 15, 170, 48, 7, 112, 56, 178,
+  245, 12, 26, 255, 43, 154, 114, 164, 136, 117, 179, 84, 56, 30, 152, 208,
+  168, 240, 211, 8, 139, 75, 63, 247, 57, 87, 112, 249, 249, 234, 242, 253,
+  190, 132, 203, 35, 251, 56, 186, 53, 177, 250, 123, 102, 70, 240, 213, 121,
+  119, 230, 195, 235, 223, 105, 21, 40, 3, 61, 49, 20, 239, 249, 47, 41, 143,
+  67, 138, 73, 113, 220, 133, 73, 40, 85, 198, 53, 240, 94, 160, 119, 112, 78,
+  162, 255, 156, 198, 222, 247, 63, 100, 34, 59, 235, 68, 30, 93, 134, 156,
+  179, 140, 141, 166, 85, 221, 131, 201, 220, 107, 115, 147, 177, 184, 25, 224,
+  107, 94, 204, 160, 112, 220, 44, 255, 119, 79, 8, 189, 3, 167, 214, 68, 190,
+  93, 155, 217, 253, 246, 60, 8, 76, 170, 109, 48, 173, 145, 82, 184, 208, 131,
+  225, 193, 212, 242, 113, 28, 51, 166, 144, 55, 29, 157, 104, 24, 53, 193,
+  166, 48, 72, 55, 138, 127, 117, 17, 119, 167, 98, 94, 59, 80, 74, 229, 230,
+  108, 94, 205, 171, 245, 27, 165, 149, 94, 239, 63, 147, 23, 53, 129, 242,
+  154, 7, 47, 0, 160, 109, 63, 83, 95, 103, 163, 249, 217, 65, 150, 132, 37,
+  129, 184, 159, 24, 133, 247, 243, 220, 102, 73, 151, 234, 210, 3, 143, 30,
+  150, 100, 166, 151, 121, 15, 220, 5, 35, 160, 26, 77, 195, 0, 134, 167, 157,
+  39, 214, 251, 251, 171, 75, 126, 124, 187, 213, 160, 125, 13, 239, 11, 69,
+  200, 115, 197, 122, 109, 45, 122, 163, 116, 207, 44, 98, 133, 1, 214, 206, 5,
+  80, 55, 104, 167, 79, 255, 70, 161, 44, 238, 183, 3, 245, 87, 110, 241, 203,
+  101, 237, 34, 87, 232, 43, 227, 220, 10, 0, 108, 174, 131, 146, 148, 187, 93,
+  154, 18, 65, 72, 120, 161, 4, 75, 157, 24, 71, 17, 234, 149, 61, 57, 130, 6,
+  47, 129, 210, 128, 99, 133, 101, 133, 33, 75, 10, 251, 34, 206, 223, 180,
+  136, 225, 55, 64, 237, 175, 224, 140, 220, 132, 251, 22, 19, 112, 74, 208,
+  228, 32, 202, 209, 176, 47, 90, 154, 54, 129, 129, 57, 240, 202, 17, 108,
+  216, 49, 108, 153, 156, 242, 11, 244, 211, 5, 20, 172, 65, 73, 218, 212, 93,
+  189, 99, 167, 89, 38, 223, 138, 22, 79, 220, 238, 157, 95, 41, 14, 179, 53,
+  74, 125, 59, 112, 220, 216, 102, 79, 253, 40, 25, 88, 63, 188, 251, 203, 211,
+  18, 131, 114, 95, 80, 6, 211, 119, 255, 80, 249, 6, 191, 170, 88, 241, 254,
+  164, 176, 242, 11, 211, 107, 145, 35, 30, 123, 31, 164, 11, 207, 161, 224,
+  246, 141, 238, 91, 209, 167, 242, 2, 137, 109, 238, 106, 199, 206, 55, 68,
+  72, 127, 58, 13, 15, 127, 67, 112, 142, 46, 207, 62, 171, 68, 213, 199, 82,
+  89, 40, 79, 121, 160, 97, 249, 182, 174, 186, 164, 205, 131, 123, 165, 161,
+  121, 47, 59, 64, 143, 190, 114, 39, 233, 185, 65, 81, 80, 172, 62, 184, 235,
+  22, 234, 156, 102, 243, 69, 245, 86, 206, 250, 116, 68, 221, 249, 69, 216,
+  220, 111, 10, 189, 117, 67, 170, 158, 86, 189, 142, 136, 175, 224, 96, 5,
+  216, 126, 141, 16, 93, 203, 4, 123, 172, 250, 33, 249, 71, 252, 145, 87, 235,
+  193, 95, 208, 14, 253, 161, 188, 29, 123, 67, 197, 238, 39, 53, 46, 115, 212,
+  110, 124, 236, 83, 125, 99, 24, 43, 179, 254, 184, 14, 146, 115, 250, 32,
+  129, 222, 203, 22, 50, 252, 11, 96, 123, 49, 25, 232, 99, 101, 76, 135, 107,
+  238, 203, 69, 44, 111, 103, 169, 52, 237, 66, 115, 176, 140, 88, 76, 235,
+  201, 214, 212, 167, 165, 109, 107, 132, 27, 208, 183, 9, 56, 133, 214, 67,
+  111, 145, 33, 40, 230, 198, 96, 200, 104, 102, 181, 45, 159, 148, 8, 10, 44,
+  172, 250, 176, 254, 74, 239, 165, 217, 147, 244, 91, 252, 234, 92, 179, 34,
+  230, 73, 162, 29, 77, 228, 86, 124, 188, 103, 53, 75, 74, 234, 214, 29, 102,
+  62, 138, 84, 175, 166, 238, 207, 59, 224, 79, 86, 255, 132, 30, 239, 67, 225,
+  7, 169, 236, 38, 20, 156, 237, 90, 181, 76, 157, 147, 6, 72, 174, 126, 9,
+  247, 67, 175, 77, 113, 16, 19, 148, 83, 186, 17, 244, 161, 233, 107, 244,
+  195, 235, 86, 216, 208, 162, 165, 121, 21, 89, 80, 89, 86, 173, 153, 44, 161,
+  53, 197, 161, 186, 107, 21, 162, 77, 32, 21, 114, 166, 13, 162, 7, 82, 208,
+  177, 162, 5, 12, 113, 48, 55, 122, 105, 20, 198, 80, 2, 86, 38, 125, 27, 188,
+  28, 159, 85, 241, 178, 219, 1, 28, 199, 141, 4, 137, 170, 153, 249, 12, 16,
+  99, 70, 216, 230, 97, 30, 142, 28, 68, 223, 228, 165, 173, 216, 173, 8, 65,
+  24, 176, 39, 227, 73, 16, 51, 204, 24, 2, 85, 101, 230, 107, 170, 6, 160,
+  116, 232, 216, 88, 151, 190, 106, 187, 104, 128, 237, 220, 135, 233, 81, 189,
+  120, 128, 220, 57, 125, 157, 74, 242, 167, 149, 161, 253, 58, 215, 100, 63,
+  9, 87, 37, 10, 30, 190, 65, 127, 54, 26, 87, 228, 41, 157, 211, 227, 171,
+  149, 134, 103, 66, 81, 95, 51, 241, 122, 13, 86, 177, 215, 225, 184, 70, 83,
+  124, 194, 67, 18, 168, 166, 219, 50, 203, 170, 36, 112, 216, 82, 44, 135, 45,
+  91, 228, 180, 204, 242, 138, 216, 118, 83, 124, 50, 93, 94, 215, 204, 196,
+  203, 169, 165, 40, 56, 218, 197, 87, 167, 44, 5, 136, 186, 229, 87, 75, 189,
+  151, 92, 253, 35, 166, 100, 246, 230, 39, 91, 12, 190, 190, 78, 60, 201, 47,
+  5, 238, 34, 186, 136, 187, 84, 105, 87, 184, 156, 158, 22, 37, 22, 9, 217,
+  145, 79, 168, 181, 174, 13, 199, 20, 75, 252, 120, 157, 173, 207, 27, 149,
+  249, 130, 142, 149, 86, 94, 174, 40, 105, 60, 17, 29, 76, 61, 239, 72, 76,
+  238, 221, 166, 10, 110, 179, 159, 217, 60, 188, 228, 99, 63, 137, 118, 229,
+  111, 243, 10, 223, 181, 149, 162, 232, 229, 231, 18, 100, 253, 103, 120, 42,
+  207, 210, 238, 42, 252, 201, 195, 220, 167, 193, 162, 209, 56, 208, 162, 6,
+  60, 38, 93, 81, 153, 202, 193, 67, 164, 95, 52, 193, 131, 59, 0, 149, 79, 5,
+  119, 211, 141, 27, 227, 151, 125, 129, 111, 9, 73, 48, 151, 209, 175, 166,
+  168, 133, 216, 234, 46, 55, 197, 210, 109, 67, 62, 252, 82, 26, 179, 37, 63,
+  105, 92, 110, 61, 63, 200, 208, 54, 226, 139, 64, 22, 208, 198, 122, 249,
+  142, 225, 88, 124, 125, 32, 151, 33, 60, 125, 75, 118, 247, 159, 21, 79, 224,
+  156, 23, 29, 194, 11, 123, 78, 78, 246, 249, 131, 42, 182, 132, 186, 68, 149,
+  183, 68, 183, 220, 38, 246, 86, 111, 192, 165, 17, 79, 17, 164, 83, 161, 179,
+  106, 251, 160, 11, 249, 105, 159, 199, 103, 41, 124, 32, 6, 38, 194, 37, 194,
+  6, 16, 190, 120, 196, 214, 32, 214, 169, 182, 132, 35, 7, 24, 162, 105, 238,
+  163, 168, 239, 110, 147, 247, 59, 46, 25, 3, 121, 64, 152, 197, 26, 87, 93,
+  215, 75, 36, 87, 98, 107, 171, 116, 1, 137, 33, 132, 104, 195, 242, 255, 172,
+  34, 193, 247, 231, 24, 254, 162, 178, 62, 219, 191, 80, 24, 133, 207, 151,
+  58, 13, 26, 123, 87, 49, 118, 69, 229, 226, 17, 107, 183, 212, 168, 204, 185,
+  135, 91, 48, 4, 189, 180, 9, 230, 72, 209, 146, 45, 222, 43, 12, 242, 35,
+  241, 58, 142, 59, 116, 33, 24, 199, 168, 67, 152, 70, 34, 34, 77, 244, 163,
+  234, 182, 159, 162, 178, 239, 189, 62, 109, 238, 92, 78, 65, 143, 58, 36, 67,
+  48, 216, 122, 42, 2, 16, 17, 173, 68, 118, 205, 131, 191, 236, 236, 193, 223,
+  198, 250, 105, 113, 75, 86, 205, 132, 132, 252, 23, 247, 192, 6, 118, 21,
+  202, 89, 5, 252, 156, 225, 200, 228, 8, 234, 153, 249, 209, 253, 124, 84,
+  191, 255, 104, 190, 95, 223, 44, 9, 209, 54, 4, 138, 32, 50, 134, 139, 146,
+  17, 217, 138, 251, 198, 72, 48, 108, 124, 242, 233, 45, 140, 230, 78, 202,
+  176, 46, 2, 131, 231, 27, 59, 63, 236, 234, 96, 41, 3, 114, 235, 185, 7, 0,
+  15, 52, 83, 173, 86, 182, 150, 55, 85, 28, 212, 218, 113, 47, 216, 42, 105,
+  122, 120, 24, 128, 34, 204, 214, 22, 114, 169, 77, 14, 182, 5, 104, 161, 48,
+  127, 113, 242, 193, 33, 209, 253, 52, 233, 129, 208, 122, 139, 71, 214, 249,
+  3, 130, 12, 226, 115, 243, 234, 235, 144, 144, 190, 168, 51, 209, 133, 244,
+  82, 237, 162, 4, 238, 39, 221, 115, 248, 9, 212, 213, 76, 156, 34, 97, 154,
+  79, 148, 230, 125, 112, 193, 38, 87, 58, 156, 247, 225, 126, 97, 240, 81,
+  205, 225, 11, 247, 12, 146, 2, 101, 24, 42, 83, 177, 24, 137, 174, 177, 104,
+  187, 30, 62, 144, 226, 248, 251, 85, 76, 39, 26, 104, 112, 102, 179, 140,
+  216, 16, 104, 60, 75, 229, 3, 73, 84, 207, 48, 26, 128, 91, 177, 85, 42, 118,
+  22, 156, 197, 239, 72, 220, 170, 119, 180, 5, 202, 246, 106, 221, 188, 234,
+  65, 252, 86, 72, 119, 202, 123, 50, 178, 200, 51, 150, 245, 166, 112, 36,
+  169, 87, 134, 146, 198, 212, 219, 104, 165, 76, 137, 247, 150, 236, 33, 207,
+  200, 27, 171, 65, 237, 89, 162, 5, 120, 45, 88, 71, 164, 142, 53, 42, 101,
+  37, 7, 36, 190, 198, 10, 15, 71, 215, 32, 57, 89, 194, 155, 170, 247, 63, 39,
+  55, 154, 135, 87, 203, 45, 226, 163, 186, 135, 121, 67, 174, 22, 88, 57, 91,
+  114, 187, 183, 64, 148, 41, 163, 134, 167, 228, 214, 184, 214, 217, 5, 176,
+  221, 100, 231, 243, 55, 98, 204, 72, 58, 29, 48, 192, 64, 136, 67, 128, 103,
+  102, 150, 209, 95, 73, 112, 115, 46, 232, 231, 250, 164, 223, 82, 109, 97,
+  136, 171, 104, 62, 98, 55, 6, 3, 134, 161, 204, 198, 14, 58, 159, 152, 201,
+  196, 210, 80, 243, 52, 168, 72, 153, 178, 132, 255, 129, 146, 204, 88, 0, 64,
+  123, 244, 167, 241, 208, 58, 35, 254, 111, 144, 16, 35, 10, 164, 177, 73,
+  238, 245, 196, 35, 107, 128, 126, 10, 150, 254, 251, 140, 19, 35, 0, 221,
+  226, 93, 91, 118, 180, 213, 150, 40, 253, 220, 30, 128, 198, 154, 18, 168,
+  29, 220, 88, 213, 34, 209, 16, 126, 248, 102, 234, 233, 54, 107, 15, 247,
+  219, 72, 191, 77, 202, 216, 124, 31, 60, 174, 242, 197, 99, 55, 17, 9, 211,
+  147, 30, 223, 150, 232, 221, 215, 18, 64, 36, 14, 39, 71, 37, 148, 42, 131,
+  208, 70, 150, 158, 37, 142, 51, 4, 75, 106, 36, 20, 249, 183, 208, 163, 132,
+  192, 236, 77, 216, 218, 126, 33, 13, 149, 89, 219, 92, 192, 76, 51, 114, 104,
+  3, 79, 160, 132, 100, 131, 19, 218, 227, 106, 134, 72, 151, 64, 216, 52, 89,
+  73, 65, 61, 31, 109, 112, 32, 135, 138, 74, 61, 225, 145, 155, 0, 218, 146,
+  132, 169, 18, 168, 125, 50, 13, 11, 91, 235, 187, 69, 144, 29, 219, 106, 221,
+  5, 242, 254, 154, 166, 175, 208, 64, 170, 5, 226, 165, 96, 84, 163, 159, 108,
+  231, 252, 143, 150, 26, 248, 15, 223, 84, 121, 149, 233, 182, 110, 35, 252,
+  17, 226, 225, 33, 210, 108, 129, 39, 97, 94, 31, 77, 135, 89, 134, 110, 75,
+  45, 123, 213, 19, 16, 51, 173, 134, 151, 237, 52, 19, 6, 165, 78, 231, 187,
+  245, 201, 129, 1, 4, 164, 245, 146, 247, 111, 37, 187, 59, 12, 101, 67, 93,
+  158, 52, 62, 246, 77, 151, 17, 34, 35, 142, 123, 227, 224, 202, 56, 164, 179,
+  174, 106, 248, 237, 124, 74, 190, 223, 51, 204, 201, 143, 225, 218, 183, 183,
+  58, 86, 200, 202, 44, 89, 153, 219, 42, 76, 69, 203, 108, 243, 254, 104, 99,
+  235, 255, 108, 61, 62, 242, 100, 213, 39, 18, 58, 18, 145, 104, 162, 109, 55,
+  97, 206, 223, 253, 123, 107, 60, 83, 22, 195, 166, 180, 19, 117, 128, 81,
+  178, 218, 84, 193, 135, 101, 247, 7, 152, 142, 71, 209, 94, 163, 161, 106,
+  101, 245, 94, 227, 198, 103, 40, 171, 243, 250, 40, 99, 198, 207, 213, 115,
+  138, 114, 145, 5, 6, 22, 3, 229, 200, 182, 72, 183, 32, 187, 195, 21, 249,
+  11, 78, 64, 33, 29, 139, 155, 138, 54, 207, 85, 167, 219, 10, 21, 59, 33, 52,
+  103, 56, 164, 191, 33, 75, 158, 184, 100, 120, 231, 211, 124, 100, 248, 166,
+  94, 241, 242, 177, 147, 95, 152, 117, 25, 151, 48, 62, 84, 216, 72, 171, 30,
+  110, 18, 16, 178, 208, 195, 174, 237, 38, 174, 78, 14, 204, 172, 4, 160, 150,
+  47, 120, 137, 217, 37, 43, 200, 149, 86, 202, 143, 91, 222, 164, 136, 144,
+  172, 94, 128, 204, 22, 92, 16, 20, 43, 175, 178, 61, 26, 45, 59, 8, 115, 217,
+  226, 17, 235, 153, 5, 6, 97, 44, 14, 194, 41, 61, 9, 178, 126, 168, 10, 122,
+  224, 153, 54, 45, 236, 124, 161, 2, 156, 236, 1, 32, 29, 165, 9, 231, 161,
+  70, 88, 226, 77, 25, 90, 72, 91, 234, 138, 58, 47, 115, 197, 170, 223, 99,
+  103, 159, 229, 14, 140, 155, 78, 116, 248, 177, 10, 206, 209, 51, 80, 195,
+  19, 90, 115, 170, 131, 177, 220, 137, 204, 222, 19, 56, 98, 124, 115, 134,
+  158, 212, 236, 49, 42, 233, 176, 99, 201, 112, 222, 117, 116, 225, 103, 43,
+  27, 66, 93, 66, 129, 173, 186, 19, 17, 66, 141, 171, 28, 158, 85, 165, 216,
+  179, 2, 158, 229, 146, 181, 66, 150, 159, 248, 79, 77, 85, 6, 211, 29, 218,
+  121, 153, 141, 255, 186, 131, 158, 220, 82, 7, 239, 46, 50, 243, 197, 154,
+  162, 236, 138, 188, 199, 62, 200, 131, 111, 184, 162, 242, 16, 140, 59, 196,
+  209, 112, 64, 21, 43, 137, 56, 4, 218, 78, 100, 171, 229, 252, 60, 131, 113,
+  64, 158, 79, 105, 216, 225, 28, 221, 83, 44, 147, 64, 249, 129, 45, 255, 194,
+  149, 114, 236, 94, 157, 206, 189, 114, 153, 191, 113, 47, 1, 138, 168, 65,
+  123, 129, 249, 175, 178, 229, 208, 16, 113, 1, 234, 90, 168, 10, 26, 66, 86,
+  101, 95, 55, 164, 8, 21, 228, 209, 79, 8, 154, 179, 40, 167, 172, 30, 69, 80,
+  250, 57, 108, 81, 84, 222, 113, 8, 69, 220, 5, 233, 122, 75, 23, 51, 33, 25,
+  29, 46, 8, 24, 133, 32, 84, 142, 87, 85, 111, 71, 184, 28, 97, 83, 196, 143,
+  179, 160, 40, 10, 134, 134, 44, 145, 146, 159, 45, 215, 30, 46, 154, 130,
+  169, 117, 24, 67, 167, 166, 160, 225, 59, 185, 136, 36, 99, 155, 192, 83, 97,
+  31, 239, 219, 131, 44, 95, 139, 96, 95, 80, 177, 235, 10, 82, 194, 4, 53,
+  206, 100, 114, 90, 68, 155, 157, 92, 116, 173, 248, 154, 88, 160, 93, 186,
+  240, 171, 148, 24, 201, 159, 239, 207, 178, 190, 121, 172, 156, 244, 173, 96,
+  52, 165, 81, 203, 106, 109, 84, 89, 200, 90, 64, 149, 191, 67, 180, 108, 62,
+  169, 119, 16, 11, 168, 70, 186, 113, 52, 216, 31, 81, 90, 207, 27, 91, 134,
+  29, 242, 61, 70, 150, 69, 129, 46, 23, 156, 162, 224, 244, 208, 147, 207, 4,
+  51, 255, 182, 57, 100, 221, 206, 200, 136, 123, 252, 90, 14, 54, 198, 234,
+  191, 120, 212, 81, 26, 235, 226, 26, 254, 249, 213, 155, 218, 123, 48, 107,
+  55, 202, 123, 120, 153, 24, 0, 118, 161, 208, 131, 20, 58, 74, 187, 24, 206,
+  154, 2, 147, 68, 69, 112, 173, 37, 236, 89, 125, 147, 156, 165, 68, 217, 96,
+  169, 122, 52, 56, 25, 118, 101, 61, 120, 201, 117, 62, 150, 88, 33, 150, 215,
+  155, 71, 190, 145, 236, 19, 176, 146, 114, 79, 199, 87, 54, 192, 135, 120,
+  171, 164, 115, 118, 130, 37, 28, 42, 212, 49, 18, 230, 229, 228, 143, 202,
+  47, 123, 249, 152, 138, 113, 148, 36, 83, 154, 253, 19, 105, 16, 141, 148,
+  173, 173, 64, 85, 212, 124, 169, 99, 245, 213, 53, 220, 26, 84, 200, 164,
+  237, 91, 101, 155, 44, 133, 108, 34, 31, 234, 67, 98, 159, 169, 125, 193,
+  181, 159, 213, 204, 135, 161, 3, 190, 209, 232, 163, 88, 37, 131, 0, 79, 211,
+  90, 87, 65, 13, 109, 187, 126, 6, 132, 228, 61, 24, 153, 56, 156, 43, 193,
+  184, 168, 99, 15, 243, 115, 38, 102, 218, 169, 58, 157, 228, 217, 9, 118,
+  255, 24, 7, 173, 18, 65, 156, 105, 129, 148, 38, 71, 168, 175, 160, 106, 7,
+  167, 241, 250, 190, 46, 88, 9, 202, 139, 116, 107, 84, 254, 47, 38, 26, 57,
+  221, 143, 68, 237, 226, 215, 124, 142, 35, 136, 24, 63, 71, 227, 105, 119,
+  30, 6, 140, 247, 239, 164, 228, 36, 12, 155, 133, 0, 73, 147, 190, 50, 211,
+  147, 68, 161, 153, 232, 6, 173, 155, 168, 207, 50, 162, 127, 124, 208, 105,
+  91, 224, 164, 131, 165, 235, 223, 41, 102, 97, 229, 78, 253, 134, 53, 205,
+  31, 215, 50, 223, 19, 78, 111, 58, 92, 107, 108, 165, 146, 220, 89, 231, 21,
+  79, 99, 75, 146, 235, 18, 168, 72, 192, 59, 255, 85, 214, 52, 217, 163, 224,
+  204, 200, 215, 16, 215, 68, 31, 242, 115, 63, 252, 209, 144, 23, 163, 178,
+  63, 11, 176, 254, 122, 228, 59, 233, 129, 25, 154, 122, 144, 151, 67, 126,
+  180, 180, 243, 64, 70, 52, 31, 210, 237, 59, 252, 102, 34, 111, 255, 164, 51,
+  239, 218, 96, 68, 141, 0, 51, 183, 3, 202, 222, 86, 53, 104, 142, 112, 242,
+  12, 126, 103, 38, 125, 98, 154, 141, 2, 72, 227, 161, 23, 36, 202, 75, 118,
+  73, 43, 0, 84, 250, 143, 87, 237, 255, 98, 164, 252, 223, 87, 18, 254, 231,
+  228, 86, 95, 254, 152, 93, 114, 239, 250, 19, 135, 54, 15, 81, 131, 44, 231,
+  200, 148, 218, 81, 116, 62, 32, 11, 144, 250, 70, 131, 112, 35, 173, 216,
+  155, 173, 210, 229, 208, 231, 179, 248, 241, 165, 191, 51, 238, 94, 205, 55,
+  20, 144, 6, 155, 120, 252, 221, 184, 54, 16, 94, 205, 208, 79, 193, 49, 249,
+  250, 58, 88, 13, 127, 212, 213, 230, 127, 15, 88, 187, 191, 128, 121, 104,
+  254, 154, 251, 232, 252, 206, 195, 7, 70, 193, 118, 0, 144, 135, 202, 254,
+  237, 238, 150, 99, 209, 145, 40, 142, 33, 51, 57, 217, 139, 24, 66, 183, 253,
+  163, 230, 1, 192, 55, 218, 161, 44, 196, 184, 157, 202, 42, 134, 119, 17, 89,
+  173, 176, 78, 243, 20, 88, 2, 77, 147, 246, 244, 166, 180, 219, 136, 126,
+  232, 98, 239, 225, 155, 59, 12, 72, 156, 240, 180, 140, 213, 172, 210, 96,
+  232, 4, 122, 64, 132, 154, 32, 4, 152, 177, 69, 153, 107, 153, 6, 180, 150,
+  102, 184, 156, 191, 171, 152, 114, 180, 26, 128, 5, 99, 77, 243, 120, 156,
+  220, 102, 26, 249, 54, 24, 58, 255, 2, 70, 166, 235, 192, 64, 183, 217, 102,
+  25, 125, 62, 242, 1, 226, 202, 181, 206, 200, 63, 98, 15, 163, 138, 144, 211,
+  2, 35, 209, 238, 66, 25, 126, 112, 80, 36, 231, 107, 30, 164, 50, 152, 133,
+  130, 47, 33, 108, 196, 30, 211, 143, 242, 149, 180, 211, 231, 119, 56, 178,
+  30, 129, 204, 200, 200, 141, 84, 41, 132, 79, 145, 70, 67, 144, 42, 127, 245,
+  7, 111, 106, 173, 229, 248, 61, 94, 251, 61, 48, 198, 65, 200, 137, 31, 69,
+  190, 211, 189, 156, 113, 190, 28, 106, 17, 75, 216, 100, 231, 143, 73, 38,
+  33, 42, 160, 136, 216, 76, 157, 99, 145, 137, 205, 168, 236, 115, 125, 213,
+  141, 138, 16, 245, 36, 171, 182, 233, 228, 31, 16, 13, 133, 33, 90, 18, 114,
+  110, 211, 188, 199, 38, 221, 95, 5, 8, 81, 245, 12, 243, 61, 40, 92, 164,
+  143, 10, 110, 133, 238, 189, 8, 118, 47, 183, 254, 189, 154, 63, 151, 37,
+  252, 113, 53, 193, 203, 166, 121, 15, 186, 144, 227, 18, 215, 153, 113, 12,
+  116, 114, 201, 148, 77, 141, 211, 11, 186, 193, 230, 224, 38, 180, 140, 225,
+  92, 134, 125, 205, 119, 60, 162, 93, 72, 60, 247, 189, 175, 110, 71, 66, 96,
+  187, 89, 13, 138, 190, 107, 158, 29, 229, 132, 228, 171, 11, 32, 189, 230,
+  230, 243, 160, 185, 222, 136, 118, 20, 91, 157, 226, 45, 184, 49, 240, 139,
+  31, 183, 217, 88, 58, 32, 104, 205, 45, 96, 81, 233, 173, 210, 97, 178, 191,
+  122, 46, 142, 116, 186, 67, 96, 217, 89, 254, 73, 184, 93, 34, 205, 154, 114,
+  89, 114, 124, 122, 190, 60, 235, 168, 137, 110, 152, 151, 142, 110, 95, 74,
+  183, 70, 25, 182, 242, 115, 176, 81, 211, 118, 173, 123, 10, 223, 17, 170,
+  230, 114, 0, 104, 177, 72, 5, 54, 83, 203, 224, 20, 170, 249, 132, 134, 65,
+  58, 236, 61, 253, 148, 104, 128, 21, 106, 128, 28, 145, 188, 77, 186, 158,
+  189, 107, 146, 77, 97, 211, 38, 243, 161, 232, 235, 78, 233, 198, 143, 144,
+  104, 231, 165, 117, 124, 148, 77, 87, 22, 154, 253, 192, 154, 91, 68, 66,
+  159, 11, 201, 27, 108, 129, 127, 192, 10, 54, 173, 253, 222, 125, 141, 249,
+  31, 88, 253, 15, 145, 151, 250, 136, 122, 49, 180, 75, 19, 30, 252, 204, 185,
+  174, 52, 75, 187, 1, 56, 248, 33, 115, 232, 102, 23, 212, 189, 116, 159, 122,
+  155, 77, 135, 122, 134, 175, 71, 104, 22, 82, 41, 134, 88, 52, 232, 160, 51,
+  177, 184, 213, 130, 90, 119, 79, 21, 26, 160, 145, 33, 50, 2, 156, 46, 85,
+  161, 247, 92, 132, 226, 158, 151, 119, 17, 68, 205, 152, 213, 71, 58, 230,
+  74, 135, 231, 16, 222, 251, 150, 119, 18, 185, 171, 30, 141, 155, 175, 6, 48,
+  191, 1, 1, 194, 48, 120, 168, 193, 201, 225, 105, 228, 254, 93, 76, 174, 190,
+  98, 28, 130, 213, 248, 26, 143, 118, 140, 115, 79, 13, 128, 212, 92, 244, 32,
+  237, 215, 253, 3, 53, 18, 212, 85, 181, 121, 117, 125, 10, 157, 13, 233, 44,
+  232, 129, 101, 252, 65, 152, 39, 82, 194, 142, 8, 116, 8, 226, 211, 217, 155,
+  152, 87, 107, 118, 11, 196, 42, 90, 84, 40, 82, 166, 246, 21, 165, 150, 197,
+  27, 24, 130, 134, 200, 158, 2, 224, 59, 4, 11, 28, 172, 222, 175, 51, 5, 103,
+  56, 170, 104, 184, 117, 36, 34, 70, 178, 72, 154, 63, 197, 28, 188, 237, 158,
+  125, 81, 62, 77, 200, 176, 53, 133, 57, 73, 27, 80, 135, 82, 176, 208, 177,
+  99, 122, 97, 65, 112, 75, 123, 39, 239, 69, 121, 142, 92, 67, 133, 236, 1,
+  169, 4, 128, 64, 241, 64, 22, 147, 161, 165, 60, 33, 193, 227, 132, 58, 66,
+  232, 192, 18, 218, 227, 250, 176, 133, 40, 138, 213, 13, 79, 253, 176, 250,
+  206, 61, 113, 119, 193, 248, 238, 184, 76, 119, 65, 57, 203, 152, 172, 123,
+  206, 223, 1, 52, 16, 160, 71, 36, 4, 105, 94, 107, 248, 209, 119, 49, 238,
+  75, 75, 197, 154, 246, 165, 99, 65, 16, 253, 192, 123, 158, 57, 245, 237, 61,
+  205, 194, 98, 104, 178, 23, 191, 147, 114, 196, 21, 36, 77, 23, 251, 10, 150,
+  133, 55, 117, 146, 142, 50, 160, 193, 194, 89, 62, 239, 194, 38, 179, 89, 77,
+  83, 3, 49, 110, 112, 156, 223, 86, 75, 152, 180, 163, 51, 217, 60, 24, 34,
+  40, 177, 49, 162, 220, 79, 186, 190, 119, 33, 53, 193, 192, 97, 144, 188,
+  109, 68, 78, 5, 98, 44, 151, 219, 139, 137, 97, 52, 141, 6, 226, 148, 60, 70,
+  23, 64, 70, 143, 113, 10, 82, 85, 238, 98, 79, 107, 119, 6, 214, 12, 55, 229,
+  80, 113, 46, 150, 9, 8, 109, 182, 2, 78, 83, 36, 99, 147, 201, 45, 135, 222,
+  106, 95, 99, 24, 54, 165, 103, 174, 239, 221, 131, 229, 32, 149, 249, 38,
+  202, 9, 156, 142, 204, 98, 3, 253, 50, 112, 41, 6, 128, 189, 202, 244, 60,
+  179, 113, 118, 46, 46, 40, 111, 24, 157, 219, 199, 154, 2, 165, 77, 209, 47,
+  105, 241, 84, 81, 210, 212, 153, 81, 198, 252, 29, 55, 182, 140, 189, 232,
+  172, 235, 213, 232, 34, 235, 31, 81, 199, 145, 239, 178, 73, 107, 84, 155,
+  43, 209, 185, 119, 249, 104, 155, 173, 150, 157, 245, 234, 119, 144, 197, 37,
+  134, 219, 23, 77, 103, 237, 142, 21, 27, 237, 70, 7, 45, 10, 41, 119, 96,
+  109, 184, 168, 180, 187, 9, 169, 102, 243, 154, 195, 73, 1, 161, 226, 21,
+  243, 197, 123, 23, 52, 80, 139, 200, 45, 109, 242, 244, 11, 212, 7, 252, 8,
+  26, 68, 109, 242, 13, 196, 2, 212, 157, 148, 46, 38, 206, 56, 204, 170, 70,
+  184, 235, 179, 68, 248, 193, 88, 48, 120, 249, 217, 206, 131, 193, 193, 53,
+  130, 161, 33, 115, 104, 216, 116, 99, 114, 57, 54, 52, 7, 195, 48, 68, 224,
+  101, 2, 0, 21, 119, 159, 120, 90, 13, 162, 205, 58, 199, 17, 125, 210, 106,
+  40, 118, 123, 132, 217, 156, 225, 188, 82, 193, 113, 61, 153, 211, 17, 10,
+  221, 22, 98, 188, 174, 174, 36, 191, 76, 50, 175, 168, 85, 188, 8, 237, 0,
+  174, 153, 183, 110, 152, 181, 212, 147, 181, 14, 220, 233, 6, 225, 107, 55,
+  197, 72, 183, 147, 21, 255, 195, 168, 165, 248, 200, 235, 191, 228, 194, 6,
+  180, 192, 92, 117, 118, 147, 160, 31, 150, 185, 45, 183, 29, 94, 189, 128,
+  66, 33, 246, 76, 227, 179, 33, 208, 166, 7, 123, 9, 16, 218, 133, 161, 125,
+  137, 229, 100, 155, 99, 115, 66, 3, 139, 47, 148, 125, 186, 117, 16, 73, 33,
+  50, 110, 197, 220, 12, 116, 109, 99, 209, 134, 152, 234, 119, 86, 75, 184,
+  63, 160, 166, 183, 119, 243, 245, 12, 173, 135, 17, 221, 196, 96, 184, 119,
+  253, 84, 189, 240, 254, 187, 170, 93, 243, 232, 200, 221, 235, 8, 168, 127,
+  78, 90, 139, 247, 247, 60, 71, 172, 119, 221, 246, 110, 104, 70, 117, 128,
+  34, 120, 141, 69, 253, 58, 138, 153, 96, 88, 114, 166, 75, 31, 159, 67, 86,
+  173, 123, 109, 56, 104, 20, 153, 176, 192, 43, 76, 241, 35, 74, 252, 172,
+  124, 171, 50, 189, 36, 5, 29, 58, 229, 126, 195, 73, 246, 153, 126, 251, 178,
+  56, 198, 190, 34, 243, 249, 56, 92, 155, 129, 245, 85, 84, 163, 244, 231, 89,
+  215, 194, 66, 156, 57, 95, 226, 110, 65, 243, 28, 154, 105, 144, 110, 20, 0,
+  170, 120, 14, 80, 55, 133, 59, 44, 187, 246, 243, 90, 126, 162, 24, 222, 6,
+  62, 138, 134, 112, 166, 24, 205, 28, 198, 187, 88, 13, 231, 176, 184, 46, 52,
+  79, 241, 46, 120, 158, 130, 144, 242, 107, 84, 174, 44, 197, 139, 17, 220,
+  142, 242, 49, 136, 151, 18, 132, 85, 78, 188, 148, 185, 183, 62, 96, 151,
+  132, 221, 242, 190, 25, 63, 199, 109, 208, 119, 37, 72, 17, 196, 179, 16,
+  242, 46, 198, 116, 29, 26, 122, 207, 111, 13, 226, 161, 194, 123, 24, 7, 141,
+  243, 106, 230, 108, 201, 93, 220, 135, 162, 254, 180, 163, 30, 58, 40, 246,
+  187, 169, 247, 25, 153, 178, 139, 68, 36, 199, 103, 109, 2, 135, 236, 115,
+  81, 245, 193, 64, 76, 232, 213, 117, 43, 193, 220, 72, 115, 8, 118, 90, 132,
+  252, 180, 21, 54, 18, 129, 61, 214, 112, 47, 204, 184, 83, 43, 120, 89, 189,
+  6, 198, 47, 29, 212, 209, 214, 146, 161, 145, 93, 211, 167, 209, 241, 77, 71,
+  227, 196, 14, 150, 143, 9, 179, 163, 17, 55, 196, 247, 145, 31, 72, 71, 72,
+  138, 93, 163, 66, 57, 126, 229, 114, 55, 252, 64, 249, 104, 109, 239, 228,
+  56, 243, 67, 11, 40, 81, 166, 100, 87, 253, 225, 110, 155, 19, 74, 252, 236,
+  28, 41, 4, 182, 168, 86, 218, 188, 31, 4, 134, 52, 90, 183, 133, 255, 241,
+  216, 0, 29, 61, 143, 6, 98, 123, 155, 232, 213, 150, 143, 163, 120, 121, 154,
+  231, 36, 147, 184, 49, 211, 31, 24, 48, 37, 81, 101, 21, 157, 91, 169, 84,
+  45, 15, 215, 96, 9, 58, 226, 243, 124, 78, 223, 254, 16, 12, 7, 242, 190,
+  176, 115, 135, 89, 17, 145, 70, 44, 6, 228, 116, 144, 151, 191, 251, 247,
+  112, 92, 7, 217, 73, 46, 138, 32, 46, 255, 52, 185, 138, 85, 113, 162, 187,
+  49, 203, 9, 157, 15, 203, 89, 182, 34, 111, 13, 4, 219, 178, 110, 105, 77,
+  174, 136, 17, 113, 180, 231, 153, 154, 98, 199, 73, 145, 55, 69, 56, 224, 87,
+  169, 102, 222, 161, 233, 214, 165, 48, 118, 150, 173, 67, 189, 111, 23, 43,
+  1, 37, 139, 60, 140, 4, 146, 190, 164, 14, 201, 87, 23, 220, 89, 136, 255,
+  126, 255, 132, 89, 135, 97, 187, 207, 169, 107, 38, 147, 103, 133, 100, 181,
+  173, 29, 203, 119, 198, 245, 69, 25, 71, 157, 198, 2, 18, 65, 91, 123, 143,
+  129, 136, 26, 3, 147, 102, 12, 38, 226, 33, 58, 209, 52, 210, 135, 39, 127,
+  201, 99, 185, 250, 203, 58, 248, 146, 88, 207, 223, 177, 200, 255, 54, 18,
+  35, 152, 192, 236, 233, 3, 49, 212, 209, 193, 141, 66, 20, 131, 232, 116,
+  185, 241, 182, 179, 231, 57, 27, 222, 229, 56, 41, 177, 52, 179, 145, 73,
+  237, 232, 227, 158, 250, 65, 229, 82, 169, 176, 84, 191, 127, 16, 192, 130,
+  61, 0, 5, 238, 109, 164, 179, 150, 209, 123, 146, 195, 78, 167, 202, 31, 142,
+  139, 248, 16, 178, 183, 93, 172, 245, 165, 108, 209, 47, 35, 24, 30, 135, 55,
+  109, 182, 109, 8, 162, 236, 116, 150, 114, 117, 173, 13, 43, 127, 63, 34,
+  176, 84, 165, 173, 222, 201, 19, 108, 173, 207, 203, 64, 149, 186, 78, 248,
+  44, 53, 72, 94, 191, 89, 179, 220, 44, 49, 247, 121, 230, 228, 71, 248, 237,
+  157, 233, 129, 83, 245, 111, 50, 67, 40, 178, 121, 80, 66, 62, 236, 152, 188,
+  47, 171, 156, 139, 65, 226, 41, 83, 167, 114, 79, 231, 98, 140, 195, 95, 30,
+  188, 251, 141, 29, 144, 32, 45, 59, 232, 51, 127, 248, 92, 15, 160, 210, 147,
+  163, 235, 226, 198, 139, 216, 229, 244, 116, 27, 246, 16, 207, 175, 161, 15,
+  219, 136, 41, 241, 98, 76, 109, 18, 176, 181, 54, 38, 153, 45, 166, 93, 136,
+  155, 234, 92, 81, 70, 40, 223, 224, 72, 112, 54, 21, 11, 86, 209, 181, 123,
+  94, 225, 24, 194, 203, 47, 99, 193, 78, 58, 242, 172, 181, 73, 96, 187, 219,
+  56, 127, 63, 89, 12, 252, 31, 179, 221, 192, 213, 139, 109, 158, 98, 239,
+  211, 200, 252, 69, 69, 180, 7, 118, 113, 2, 110, 189, 149, 120, 225, 129,
+  142, 174, 253, 11, 132, 74, 95, 237, 206, 75, 171, 239, 153, 174, 82, 54, 56,
+  192, 131, 240, 93, 219, 55, 182, 68, 138, 30, 42, 120, 153, 213, 254, 144,
+  13, 176, 57, 0, 70, 205, 29, 18, 51, 125, 56, 197, 7, 135, 128, 125, 46, 251,
+  229, 33, 199, 135, 80, 194, 93, 27, 160, 109, 217, 118, 85, 76, 13, 221, 193,
+  72, 112, 137, 129, 96, 33, 129, 215, 190, 82, 63, 49, 6, 194, 61, 87, 65,
+  244, 117, 173, 25, 170, 89, 32, 142, 132, 154, 102, 174, 19, 135, 40, 238,
+  62, 94, 66, 237, 138, 235, 217, 225, 136, 158, 92, 100, 211, 204, 83, 97,
+  216, 244, 24, 96, 131, 221, 27, 34, 150, 161, 40, 202, 46, 61, 2, 148, 180,
+  142, 101, 207, 220, 198, 49, 41, 36, 105, 9, 9, 51, 57, 174, 6, 123, 135, 41,
+  64, 145, 224, 134, 184, 92, 186, 234, 179, 239, 170, 106, 72, 23, 206, 230,
+  195, 172, 130, 229, 156, 20, 32, 2, 231, 164, 35, 128, 182, 181, 122, 122,
+  245, 91, 59, 92, 221, 69, 15, 192, 215, 63, 39, 141, 177, 202, 153, 152, 208,
+  201, 178, 240, 9, 13, 189, 197, 119, 221, 214, 87, 23, 73, 124, 78, 38, 134,
+  0, 59, 129, 23, 174, 199, 146, 143, 52, 47, 133, 179, 195, 26, 77, 123, 249,
+  51, 127, 217, 221, 68, 111, 46, 201, 83, 126, 201, 63, 52, 102, 123, 96, 70,
+  206, 76, 10, 151, 229, 52, 96, 180, 12, 254, 59, 176, 221, 3, 149, 145, 11,
+  100, 91, 95, 21, 128, 165, 167, 248, 217, 219, 104, 193, 237, 111, 162, 220,
+  29, 114, 150, 159, 124, 40, 21, 64, 119, 132, 138, 55, 63, 194, 73, 178, 29,
+  89, 182, 189, 163, 10, 3, 179, 140, 99, 50, 53, 69, 53, 15, 151, 185, 155,
+  15, 255, 228, 114, 172, 136, 45, 0, 232, 116, 3, 238, 182, 12, 55, 185, 208,
+  13, 15, 255, 34, 130, 86, 203, 179, 16, 232, 107, 213, 158, 45, 230, 252,
+  105, 101, 168, 75, 187, 240, 48, 94, 255, 52, 168, 222, 225, 2, 212, 172,
+  237, 161, 58, 237, 109, 6, 87, 54, 43, 83, 42, 168, 76, 41, 126, 230, 64,
+  144, 157, 225, 152, 129, 63, 193, 37, 21, 219, 78, 46, 90, 202, 170, 113, 82,
+  241, 249, 95, 0, 154, 19, 241, 192, 153, 86, 232, 97, 54, 72, 152, 33, 59,
+  83, 252, 36, 40, 115, 145, 34, 143, 86, 47, 37, 33, 30, 26, 69, 205, 35, 248,
+  123, 207, 37, 46, 151, 12, 200, 208, 155, 207, 17, 67, 11, 199, 22, 229, 126,
+  1, 25, 216, 220, 117, 178, 177, 48, 243, 34, 214, 136, 139, 209, 142, 191,
+  152, 202, 69, 170, 56, 100, 60, 170, 138, 126, 20, 53, 194, 173, 249, 133,
+  119, 192, 219, 156, 196, 59, 178, 218, 49, 22, 164, 194, 175, 130, 218, 254,
+  146, 115, 15, 208, 13, 173, 199, 194, 193, 74, 134, 149, 220, 21, 40, 92, 95,
+  194, 139, 180, 103, 3, 119, 98, 152, 11, 5, 175, 50, 55, 82, 114, 165, 93,
+  134, 215, 216, 66, 22, 65, 145, 218, 231, 242, 95, 2, 163, 192, 242, 145, 16,
+  175, 3, 113, 209, 22, 14, 242, 132, 9, 95, 99, 112, 214, 88, 126, 73, 186,
+  117, 121, 97, 128, 237, 126, 193, 123, 171, 12, 31, 136, 122, 167, 107, 7,
+  20, 237, 85, 120, 199, 145, 113, 56, 22, 22, 61, 173, 59, 203, 122, 28, 152,
+  155, 133, 156, 0, 235, 203, 67, 175, 253, 107, 85, 90, 192, 215, 94, 12, 8,
+  153, 102, 163, 11, 207, 127, 217, 156, 25, 43, 115, 225, 82, 242, 211, 109,
+  176, 135, 16, 78, 100, 120, 79, 183, 234, 144, 123, 140, 33, 152, 15, 37, 70,
+  159, 157, 172, 255, 201, 229, 178, 5, 96, 73, 158, 56, 52, 217, 121, 73, 24,
+  47, 68, 146, 231, 66, 181, 231, 21, 15, 22, 149, 50, 85, 236, 88, 98, 116,
+  217, 247, 209, 227, 21, 89, 80, 71, 138, 220, 160, 42, 138, 186, 55, 200,
+  242, 46, 255, 190, 142, 196, 84, 20, 249, 80, 31, 151, 151, 164, 186, 161,
+  127, 203, 5, 38, 166, 196, 135, 22, 132, 7, 107, 104, 49, 117, 152, 214, 228,
+  101, 206, 32, 80, 193, 143, 128, 25, 119, 181, 146, 164, 174, 129, 219, 240,
+  46, 54, 206, 149, 9, 215, 172, 3, 214, 85, 128, 4, 77, 223, 205, 184, 241, 8,
+  75, 180, 134, 35, 236, 156, 252, 88, 133, 37, 215, 184, 173, 87, 132, 69, 82,
+  196, 209, 37, 192, 176, 236, 148, 51, 183, 228, 157, 133, 37, 156, 230, 37,
+  105, 66, 123, 53, 183, 45, 140, 254, 98, 25, 60, 236, 86, 25, 105, 223, 157,
+  200, 126, 14, 175, 52, 167, 39, 110, 254, 193, 210, 145, 238, 15, 3, 151,
+  232, 206, 146, 187, 69, 12, 169, 239, 21, 238, 127, 201, 253, 10, 144, 170,
+  253, 10, 12, 54, 161, 6, 124, 209, 245, 166, 207, 225, 56, 203, 147, 83, 68,
+  91, 135, 220, 216, 197, 37, 59, 214, 233, 135, 4, 34, 210, 231, 18, 216, 202,
+  176, 187, 134, 116, 160, 245, 83, 204, 115, 161, 230, 105, 229, 66, 162, 108,
+  64, 230, 57, 62, 187, 153, 67, 155, 3, 91, 166, 56, 223, 27, 174, 134, 184,
+  0, 111, 230, 76, 249, 237, 131, 229, 199, 51, 35, 40, 120, 204, 32, 161, 119,
+  59, 145, 167, 85, 2, 38, 58, 63, 208, 86, 28, 149, 212, 97, 18, 150, 66, 65,
+  89, 174, 229, 56, 214, 106, 37, 160, 5, 120, 170, 145, 58, 159, 28, 232, 221,
+  60, 149, 101, 67, 217, 58, 111, 20, 97, 231, 87, 197, 169, 173, 238, 55, 48,
+  227, 230, 180, 111, 153, 14, 189, 69, 213, 118, 188, 162, 31, 97, 1, 24, 142,
+  190, 130, 240, 192, 46, 90, 47, 210, 109, 10, 35, 200, 3, 82, 183, 180, 156,
+  83, 134, 163, 173, 8, 97, 6, 198, 130, 162, 75, 225, 132, 15, 181, 5, 199,
+  58, 231, 188, 113, 39, 166, 252, 85, 193, 80, 58, 200, 142, 40, 204, 237, 66,
+  80, 23, 95, 45, 200, 222, 106, 161, 91, 188, 101, 173, 173, 14, 103, 53, 123,
+  202, 143, 166, 190, 160, 22, 213, 34, 37, 75, 192, 175, 235, 154, 47, 141,
+  134, 24, 237, 217, 226, 35, 252, 70, 79, 127, 170, 75, 148, 102, 103, 4, 135,
+  182, 72, 20, 249, 214, 202, 180, 52, 18, 104, 226, 84, 212, 11, 24, 163, 195,
+  75, 75, 3, 65, 73, 87, 149, 17, 54, 166, 208, 153, 142, 186, 143, 123, 203,
+  130, 87, 68, 19, 19, 51, 125, 171, 75, 98, 125, 30, 164, 202, 149, 115, 34,
+  236, 0, 184, 253, 182, 124, 232, 107, 201, 149, 249, 92, 130, 19, 233, 1, 49,
+  89, 230, 165, 192, 249, 218, 80, 214, 234, 2, 113, 109, 189, 0, 244, 93, 67,
+  120, 88, 144, 113, 18, 125, 45, 112, 46, 241, 32, 36, 194, 103, 34, 30, 118,
+  121, 57, 139, 195, 243, 94, 12, 137, 133, 162, 73, 241, 123, 63, 71, 213,
+  141, 189, 52, 4, 58, 24, 78, 52, 231, 103, 123, 93, 172, 219, 248, 218, 39,
+  113, 59, 89, 81, 74, 28, 225, 90, 30, 214, 171, 92, 41, 144, 200, 161, 241,
+  84, 154, 132, 47, 17, 165, 54, 222, 141, 13, 175, 190, 54, 57, 231, 218, 240,
+  34, 194, 244, 34, 251, 177, 224, 213, 211, 210, 76, 208, 130, 185, 50, 212,
+  70, 76, 73, 184, 202, 127, 47, 120, 157, 51, 219, 205, 171, 98, 102, 107, 4,
+  117, 26, 203, 8, 1, 58, 250, 208, 94, 5, 6, 122, 178, 66, 134, 126, 3, 94,
+  239, 111, 76, 130, 67, 244, 101, 168, 6, 89, 197, 6, 152, 109, 74, 223, 79,
+  127, 66, 68, 134, 52, 9, 23, 172, 149, 176, 176, 206, 93, 214, 127, 7, 196,
+  185, 174, 177, 17, 93, 46, 114, 54, 174, 116, 169, 115, 219, 25, 203, 130,
+  10, 157, 203, 173, 63, 46, 171, 170, 33, 51, 114, 194, 38, 96, 156, 84, 44,
+  116, 143, 72, 90, 16, 166, 95, 83, 214, 82, 145, 86, 107, 63, 34, 23, 14,
+  223, 10, 23, 45, 118, 40, 37, 116, 82, 170, 123, 167, 0, 21, 50, 24, 179, 86,
+  169, 87, 87, 180, 133, 126, 13, 146, 90, 46, 131, 139, 254, 213, 125, 21,
+  222, 4, 113, 239, 41, 110, 132, 146, 74, 209, 166, 64, 53, 21, 235, 223, 60,
+  68, 237, 51, 208, 114, 71, 123, 22, 158, 151, 39, 8, 196, 38, 142, 186, 112,
+  133, 129, 179, 232, 52, 220, 102, 254, 62, 210, 176, 27, 25, 105, 248, 222,
+  76, 121, 100, 20, 10, 18, 31, 64, 105, 34, 73, 105, 52, 188, 9, 231, 24, 104,
+  1, 152, 97, 22, 53, 145, 27, 131, 172, 26, 208, 160, 171, 148, 26, 14, 249,
+  6, 172, 230, 253, 110, 4, 126, 195, 111, 239, 98, 65, 132, 130, 8, 239, 65,
+  215, 55, 220, 123, 176, 69, 108, 122, 227, 102, 31, 233, 181, 115, 77, 51,
+  253, 132, 114, 62, 143, 140, 5, 155, 217, 99, 124, 196, 15, 53, 244, 97, 3,
+  75, 63, 135, 60, 158, 170, 223, 11, 101, 197, 108, 63, 59, 215, 115, 44, 121,
+  34, 134, 83, 49, 31, 177, 124, 95, 52, 241, 106, 74, 94, 122, 164, 99, 97,
+  240, 141, 72, 79, 9, 216, 80, 227, 188, 137, 226, 56, 249, 32, 62, 97, 26,
+  130, 34, 106, 148, 189, 32, 185, 177, 95, 31, 183, 214, 147, 181, 162, 23,
+  215, 143, 70, 219, 234, 226, 230, 3, 121, 52, 207, 55, 10, 87, 236, 32, 100,
+  185, 127, 195, 0, 136, 188, 137, 40, 73, 195, 24, 139, 166, 191, 254, 234,
+  139, 30, 40, 160, 232, 221, 112, 52, 144, 196, 234, 75, 27, 114, 69, 128,
+  144, 126, 67, 194, 112, 65, 216, 80, 38, 5, 56, 201, 183, 47, 83, 191, 79,
+  111, 242, 233, 124, 75, 27, 58, 245, 190, 111, 38, 195, 194, 7, 6, 33, 249,
+  55, 98, 166, 245, 34, 243, 99, 120, 61, 136, 194, 226, 154, 174, 207, 129,
+  135, 33, 212, 117, 50, 134, 40, 168, 180, 130, 149, 66, 116, 249, 145, 96,
+  148, 229, 139, 224, 232, 196, 174, 213, 174, 1, 187, 88, 250, 128, 194, 157,
+  25, 46, 55, 155, 108, 0, 191, 102, 54, 207, 31, 245, 19, 31, 82, 173, 115,
+  98, 14, 204, 96, 175, 51, 189, 81, 241, 55, 58, 24, 243, 5, 253, 104, 183,
+  80, 75, 99, 196, 112, 144, 120, 170, 85, 131, 42, 56, 190, 33, 58, 146, 195,
+  21, 254, 35, 198, 133, 19, 120, 11, 155, 181, 161, 54, 33, 152, 69, 190, 255,
+  251, 62, 80, 149, 30, 13, 87, 69, 217, 114, 126, 27, 115, 199, 161, 137, 132,
+  117, 222, 229, 236, 247, 68, 120, 177, 114, 212, 71, 205, 193, 255, 26, 112,
+  193, 210, 39, 46, 137, 168, 102, 153, 84, 12, 59, 146, 25, 56, 183, 185, 60,
+  223, 218, 177, 163, 196, 67, 89, 179, 170, 45, 118, 236, 176, 216, 157, 81,
+  146, 11, 94, 247, 18, 112, 28, 34, 126, 187, 58, 237, 147, 111, 148, 138, 14,
+  255, 163, 99, 124, 232, 206, 134, 82, 220, 79, 109, 178, 122, 21, 87, 119,
+  164, 138, 114, 126, 13, 124, 125, 214, 240, 216, 252, 50, 85, 91, 8, 44, 193,
+  162, 243, 13, 70, 218, 225, 71, 82, 8, 158, 99, 245, 171, 213, 103, 171, 212,
+  7, 157, 13, 79, 182, 183, 84, 244, 159, 121, 81, 5, 125, 83, 210, 192, 151,
+  28, 150, 138, 250, 234, 241, 59, 238, 1, 185, 243, 152, 207, 134, 112, 237,
+  244, 165, 140, 188, 230, 55, 131, 131, 225, 200, 190, 120, 77, 105, 157, 114,
+  253, 130, 142, 93, 204, 37, 192, 27, 86, 133, 255, 164, 127, 218, 93, 99,
+  197, 102, 37, 32, 89, 157, 34, 63, 99, 1, 172, 116, 201, 6, 45, 228, 148, 54,
+  61, 135, 1, 249, 140, 177, 160, 181, 102, 1, 140, 174, 166, 68, 128, 168,
+  163, 105, 24, 82, 96, 238, 73, 0, 117, 223, 90, 199, 111, 12, 66, 30, 157,
+  119, 129, 0, 60, 109, 152, 195, 219, 6, 188, 181, 24, 123, 214, 106, 46, 36,
+  118, 98, 83, 6, 206, 159, 174, 211, 71, 58, 1, 48, 13, 178, 60, 162, 217,
+  189, 24, 39, 1, 174, 247, 38, 124, 195, 51, 185, 51, 125, 96, 152, 128, 43,
+  42, 169, 68, 220, 183, 208, 12, 22, 50, 57, 250, 221, 79, 37, 248, 161, 181,
+  252, 99, 202, 177, 109, 54, 29, 235, 48, 136, 162, 104, 196, 3, 152, 27, 32,
+  116, 191, 187, 46, 241, 55, 194, 102, 87, 89, 194, 209, 54, 98, 92, 163, 206,
+  90, 171, 80, 64, 218, 183, 65, 198, 69, 54, 190, 39, 58, 226, 202, 173, 165,
+  78, 34, 205, 192, 43, 120, 3, 67, 173, 237, 43, 85, 3, 223, 160, 142, 144,
+  155, 225, 57, 65, 180, 124, 192, 228, 228, 64, 101, 39, 175, 192, 205, 8,
+  246, 190, 175, 94, 221, 213, 50, 134, 187, 209, 171, 6, 84, 218, 11, 178,
+  184, 67, 80, 24, 70, 124, 65, 12, 7, 125, 182, 174, 83, 104, 158, 12, 142,
+  84, 84, 13, 60, 226, 13, 30, 195, 21, 224, 4, 114, 44, 164, 6, 209, 61, 36,
+  216, 155, 180, 186, 169, 85, 0, 129, 179, 99, 89, 174, 59, 28, 59, 184, 119,
+  73, 79, 94, 208, 64, 42, 196, 211, 51, 123, 192, 46, 112, 132, 177, 211, 225,
+  63, 197, 238, 115, 240, 107, 117, 85, 17, 157, 242, 119, 22, 81, 177, 108,
+  14, 190, 171, 105, 106, 16, 132, 100, 67, 143, 52, 223, 50, 203, 177, 156,
+  69, 159, 62, 52, 221, 68, 164, 232, 134, 43, 215, 158, 235, 98, 249, 165,
+  206, 197, 25, 56, 192, 252, 145, 8, 245, 105, 146, 170, 44, 28, 125, 8, 64,
+  186, 200, 207, 118, 133, 117, 223, 4, 156, 38, 113, 190, 134, 67, 45, 72, 25,
+  211, 107, 208, 98, 71, 241, 202, 173, 98, 36, 171, 254, 118, 177, 209, 44,
+  46, 161, 68, 38, 166, 162, 237, 53, 223, 158, 49, 18, 127, 57, 106, 189, 55,
+  216, 188, 217, 228, 239, 52, 143, 56, 165, 176, 182, 188, 209, 158, 182, 79,
+  237, 255, 64, 122, 239, 111, 240, 92, 201, 18, 143, 127, 180, 198, 73, 76,
+  158, 5, 20, 205, 215, 95, 45, 87, 91, 245, 94, 126, 184, 249, 234, 214, 73,
+  148, 249, 10, 188, 222, 64, 23, 24, 134, 78, 235, 44, 91, 225, 59, 179, 170,
+  70, 98, 201, 250, 105, 0, 23, 99, 221, 138, 52, 67, 202, 86, 207, 223, 248,
+  141, 60, 227, 254, 133, 226, 9, 217, 222, 242, 251, 136, 127, 3, 166, 220,
+  154, 216, 140, 71, 77, 121, 118, 113, 154, 101, 211, 9, 177, 104, 42, 237,
+  55, 167, 250, 18, 184, 229, 195, 72, 200, 136, 167, 181, 222, 18, 23, 178,
+  237, 195, 214, 79, 251, 114, 226, 222, 24, 30, 119, 200, 192, 54, 254, 240,
+  31, 120, 12, 223, 56, 191, 76, 228, 170, 158, 44, 205, 79, 147, 239, 35, 85,
+  222, 130, 252, 150, 192, 128, 94, 210, 26, 244, 12, 243, 16, 54, 240, 42, 14,
+  128, 12, 9, 241, 9, 66, 62, 205, 189, 50, 119, 248, 134, 190, 58, 134, 234,
+  191, 195, 178, 61, 173, 163, 44, 203, 202, 200, 29, 144, 54, 202, 14, 65, 99,
+  152, 46, 210, 160, 46, 73, 162, 106, 60, 249, 62, 184, 252, 135, 223, 127,
+  89, 175, 70, 61, 60, 71, 134, 56, 249, 132, 51, 128, 1, 152, 179, 150, 162,
+  244, 170, 142, 15, 22, 1, 197, 20, 206, 98, 246, 79, 101, 183, 193, 170, 102,
+  194, 20, 52, 88, 113, 76, 234, 89, 167, 46, 179, 178, 202, 19, 39, 251, 120,
+  203, 251, 201, 159, 197, 228, 228, 160, 95, 22, 77, 166, 28, 82, 4, 132, 210,
+  14, 204, 188, 213, 201, 170, 150, 214, 134, 182, 57, 41, 31, 92, 155, 35, 28,
+  114, 12, 221, 89, 236, 85, 44, 56, 240, 2, 110, 46, 126, 92, 205, 11, 64,
+  173, 237, 28, 120, 4, 99, 114, 249, 96, 1, 252, 96, 232, 221, 132, 6, 252,
+  255, 138, 67, 224, 180, 82, 180, 62, 255, 24, 89, 27, 19, 54, 207, 66, 242,
+  172, 54, 210, 15, 147, 183, 6, 157, 166, 145, 166, 244, 240, 76, 253, 126,
+  246, 254, 24, 254, 209, 63, 159, 24, 113, 0, 49, 242, 51, 52, 55, 69, 136,
+  81, 172, 103, 55, 162, 208, 223, 54, 168, 59, 8, 219, 115, 157, 129, 59, 129,
+  93, 173, 144, 195, 16, 229, 195, 238, 64, 72, 25, 79, 219, 171, 200, 129,
+  110, 253, 168, 111, 214, 195, 235, 62, 21, 243, 111, 77, 146, 122, 25, 99,
+  138, 203, 236, 17, 84, 98, 200, 40, 85, 222, 37, 197, 239, 145, 162, 142, 67,
+  37, 32, 11, 138, 53, 144, 223, 32, 66, 174, 237, 159, 47, 143, 45, 116, 34,
+  43, 254, 250, 226, 77, 147, 210, 102, 98, 134, 202, 49, 13, 112, 90, 4, 235,
+  123, 209, 136, 21, 245, 102, 14, 126, 204, 228, 241, 2
+};
 
 }  // namespace interface
-

@@ -40,7 +40,9 @@ void WebInterface::registerRoutes() {
 }
 
 void WebInterface::serveIndex() {
-  server_.send_P(200, "text/html", kWebInterfaceHtml);
+  server_.sendHeader("Content-Encoding", "br");
+  server_.send_P(200, "text/html", kWebInterfaceHtmlBrotli,
+                  kWebInterfaceHtmlBrotliLength);
 }
 
 void WebInterface::handleState() {
