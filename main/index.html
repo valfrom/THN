@@ -808,6 +808,14 @@
         simpleScheduleToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
       }
 
+      function disableScheduleForSimpleChange() {
+        if (!schedulingInput) {
+          return;
+        }
+        schedulingInput.checked = false;
+        updateSimpleScheduleVisual();
+      }
+
       async function fetchState() {
         const response = await fetch('/api/state');
         if (!response.ok) {
@@ -2245,6 +2253,15 @@
           simplePreferredMode = systemModeValue;
         }
         const displayMode = isIdle ? simplePreferredMode : systemModeValue;
+        const primaryFanButton = simpleFanBars[0];
+        const primaryFanValue = displayMode === 'fan' ? 'off' : 'auto';
+        if (primaryFanButton) {
+          primaryFanButton.dataset.simpleFan = primaryFanValue;
+          primaryFanButton.textContent = primaryFanValue === 'off' ? 'Off' : 'Auto';
+        }
+
+        const activeFanMode =
+          displayMode !== 'fan' && fanModeValue === 'off' ? 'auto' : fanModeValue;
 
         if (systemModeInput && typeof systemModeValue === 'string') {
           systemModeInput.value = systemModeValue;
@@ -2281,14 +2298,13 @@
           button.classList.toggle('active', mode === displayMode);
         });
 
-        const allowFanOff = systemModeValue === 'fan' || displayMode === 'fan';
         simpleFanBars.forEach((button) => {
           const speed = button.dataset.simpleFan;
           const isOffOption = speed === 'off';
-          const disabled = isOffOption && !allowFanOff;
+          const disabled = isOffOption && displayMode !== 'fan';
           button.classList.toggle('disabled', disabled);
           button.disabled = disabled;
-          button.classList.toggle('active', speed === fanModeValue);
+          button.classList.toggle('active', speed === activeFanMode);
         });
 
         if (simpleTempValue) {
@@ -2702,6 +2718,7 @@
           }
           const currentlyIdle = systemModeInput.value === 'idle';
           systemModeInput.value = currentlyIdle ? simplePreferredMode || 'cooling' : 'idle';
+          disableScheduleForSimpleChange();
           sendSimpleConfig();
         });
       }
@@ -2715,6 +2732,7 @@
           simplePreferredMode = mode;
           if (systemModeInput && systemModeInput.value !== 'idle') {
             systemModeInput.value = mode;
+            disableScheduleForSimpleChange();
             sendSimpleConfig();
           } else {
             updateSimplePanel(simpleSnapshotFromInputs());
@@ -2732,6 +2750,7 @@
             return;
           }
           fanModeInput.value = speed;
+          disableScheduleForSimpleChange();
           sendSimpleConfig();
         });
       });
