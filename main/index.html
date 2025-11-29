@@ -292,17 +292,24 @@
         min-width: 140px;
       }
       .device-icon {
-        width: 32px;
-        height: 32px;
+        width: 36px;
+        min-height: 42px;
         display: inline-flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 0.2rem;
         border-radius: 999px;
         color: #0ea5e9;
       }
       .device-icon svg {
-        width: 100%;
-        height: 100%;
+        width: 32px;
+        height: 32px;
+      }
+      .device-reading {
+        font-size: 0.7rem;
+        color: #0f172a;
+        line-height: 1;
       }
       .device-text {
         display: flex;
@@ -560,6 +567,7 @@
                     fill="currentColor"
                   />
                 </svg>
+                <span class="device-reading" id="simpleAmbientTemp">-</span>
               </span>
               <div class="device-text">
                 <span class="device-label">Fan</span>
@@ -575,6 +583,7 @@
                   <circle cx="44" cy="18" r="2.5" fill="currentColor" stroke="none" />
                   <path d="M21 18h15" />
                 </svg>
+                <span class="device-reading" id="simplePumpTemp">-</span>
               </span>
               <div class="device-text">
                 <span class="device-label">Pump</span>
@@ -875,8 +884,10 @@
       const simpleTempDown = document.getElementById('simpleTempDown');
       const simpleFanStatus = document.getElementById('simpleFanStatus');
       const simpleFanStatusText = document.getElementById('simpleFanStatusText');
+      const simpleAmbientTemp = document.getElementById('simpleAmbientTemp');
       const simplePumpStatus = document.getElementById('simplePumpStatus');
       const simplePumpStatusText = document.getElementById('simplePumpStatusText');
+      const simplePumpTemp = document.getElementById('simplePumpTemp');
       let simplePreferredMode = 'cooling';
       let latestSimpleFanSpeed = 'off';
       let latestSimplePumpActive = false;
@@ -2387,6 +2398,8 @@
         const fanModeValue = typeof data.fanMode === 'string' ? data.fanMode : 'auto';
         const targetValue = Number(data.target);
         const schedulingEnabled = Boolean(data.scheduling);
+        const ambientValue = Number(data.ambient);
+        const pumpTempValue = Number(data.pumpTemp);
         const isIdle = systemModeValue === 'idle';
         const fanSpeedValue = typeof data.fanSpeed === 'string' ? data.fanSpeed : latestSimpleFanSpeed;
         const compressorActive =
@@ -2470,6 +2483,16 @@
         }
         if (simplePumpStatusText) {
           simplePumpStatusText.textContent = compressorActive ? 'Running' : 'Idle';
+        }
+
+        if (simpleAmbientTemp) {
+          const ambientDisplay = toFixedOrDash(ambientValue);
+          simpleAmbientTemp.textContent = ambientDisplay === '-' ? '-' : `${ambientDisplay}°C`;
+        }
+
+        if (simplePumpTemp) {
+          const pumpDisplay = toFixedOrDash(pumpTempValue);
+          simplePumpTemp.textContent = pumpDisplay === '-' ? '-' : `${pumpDisplay}°C`;
         }
 
         if (simpleTempValue) {
@@ -2651,6 +2674,8 @@
           compressor: data.compressor,
           target: data.target,
           scheduling: data.scheduling,
+          ambient: data.ambient,
+          pumpTemp: data.coil,
         });
         const uptimeElement = document.getElementById('uptime');
         if (uptimeElement) {
