@@ -274,6 +274,84 @@
         justify-content: space-between;
         flex-wrap: wrap;
       }
+      .simple-status-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+        flex: 1;
+      }
+      .simple-device-status {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #eef2f7;
+        border: 1px solid #dbe3ec;
+        color: #0f172a;
+        border-radius: 999px;
+        padding: 0.35rem 0.6rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+      .status-icon {
+        font-size: 1.1rem;
+        display: inline-block;
+      }
+      .fan-icon {
+        color: #0ea5e9;
+        transition: color 0.2s ease, opacity 0.2s ease;
+      }
+      .fan-idle {
+        color: #94a3b8;
+        opacity: 0.7;
+      }
+      .pump-icon {
+        color: #22c55e;
+        transition: color 0.2s ease;
+      }
+      .pump-idle {
+        color: #94a3b8;
+      }
+      @keyframes fan-spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .fan-spin-low {
+        animation: fan-spin 2.4s linear infinite;
+      }
+      .fan-spin-medium {
+        animation: fan-spin 1.6s linear infinite;
+      }
+      .fan-spin-high {
+        animation: fan-spin 1s linear infinite;
+      }
+      .fan-spin-auto {
+        animation: fan-spin 1.8s linear infinite;
+      }
+      @keyframes pump-wave {
+        0% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-3px) scale(1.05);
+        }
+        100% {
+          transform: translateY(0);
+        }
+      }
+      .pump-active {
+        color: #0ea5e9;
+        animation: pump-wave 1.4s ease-in-out infinite;
+      }
       .simple-power-button {
         width: 72px;
         height: 72px;
@@ -448,7 +526,23 @@
       <section class="simple-card">
         <div class="simple-row">
           <button type="button" id="simplePowerButton" class="simple-power-button off">OFF</button>
-          <div class="simple-mode-label" id="simpleModeLabel">Idle</div>
+          <div class="simple-status-stack">
+            <div class="simple-mode-label" id="simpleModeLabel">Idle</div>
+            <div class="simple-device-status">
+              <div class="status-pill" id="simpleFanStatus">
+                <span class="status-icon fan-icon fan-idle" id="simpleFanIcon" aria-hidden="true">
+                  🌀
+                </span>
+                <span id="simpleFanText">Fan idle</span>
+              </div>
+              <div class="status-pill" id="simplePumpStatus">
+                <span class="status-icon pump-icon pump-idle" id="simplePumpIcon" aria-hidden="true">
+                  💧
+                </span>
+                <span id="simplePumpText">Pump idle</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="simple-row">
           <div class="simple-mode-buttons">
@@ -737,6 +831,10 @@
       const simpleFanBars = Array.from(document.querySelectorAll('[data-simple-fan]'));
       const simpleTempValue = document.getElementById('simpleTargetValue');
       const simpleModeLabel = document.getElementById('simpleModeLabel');
+      const simpleFanIcon = document.getElementById('simpleFanIcon');
+      const simpleFanText = document.getElementById('simpleFanText');
+      const simplePumpIcon = document.getElementById('simplePumpIcon');
+      const simplePumpText = document.getElementById('simplePumpText');
       const simpleScheduleToggle = document.getElementById('simpleScheduleToggle');
       const simpleTempUp = document.getElementById('simpleTempUp');
       const simpleTempDown = document.getElementById('simpleTempDown');
@@ -2246,6 +2344,7 @@
       function updateSimplePanel(data = {}) {
         const systemModeValue = typeof data.systemMode === 'string' ? data.systemMode : 'idle';
         const fanModeValue = typeof data.fanMode === 'string' ? data.fanMode : 'auto';
+        const fanSpeedValue = typeof data.fanSpeed === 'string' ? data.fanSpeed : fanModeValue;
         const targetValue = Number(data.target);
         const schedulingEnabled = Boolean(data.scheduling);
         const isIdle = systemModeValue === 'idle';
@@ -2311,6 +2410,44 @@
           simpleTempValue.textContent = Number.isFinite(targetValue)
             ? targetValue.toFixed(1)
             : toFixedOrDash(targetValue);
+        }
+
+        const fanLabel = fanSpeedLabels[fanSpeedValue] || fanSpeedValue || 'Off';
+        if (simpleFanText) {
+          simpleFanText.textContent = fanSpeedValue === 'off' ? 'Fan idle' : `Fan ${fanLabel}`;
+        }
+        if (simpleFanIcon) {
+          simpleFanIcon.classList.remove(
+            'fan-spin-low',
+            'fan-spin-medium',
+            'fan-spin-high',
+            'fan-spin-auto',
+            'fan-idle',
+          );
+          const spinClass =
+            fanSpeedValue === 'high'
+              ? 'fan-spin-high'
+              : fanSpeedValue === 'medium'
+              ? 'fan-spin-medium'
+              : fanSpeedValue === 'low'
+              ? 'fan-spin-low'
+              : fanSpeedValue === 'auto'
+              ? 'fan-spin-auto'
+              : '';
+          if (spinClass) {
+            simpleFanIcon.classList.add(spinClass);
+          } else {
+            simpleFanIcon.classList.add('fan-idle');
+          }
+        }
+
+        const pumpActive = Boolean(data.compressor);
+        if (simplePumpText) {
+          simplePumpText.textContent = pumpActive ? 'Pump active' : 'Pump idle';
+        }
+        if (simplePumpIcon) {
+          simplePumpIcon.classList.toggle('pump-active', pumpActive);
+          simplePumpIcon.classList.toggle('pump-idle', !pumpActive);
         }
       }
 
@@ -2482,6 +2619,8 @@
         updateSimplePanel({
           systemMode: data.systemMode,
           fanMode: data.fanMode,
+          fanSpeed: data.fanSpeed,
+          compressor: data.compressor,
           target: data.target,
           scheduling: data.scheduling,
         });
@@ -2625,6 +2764,7 @@
         return {
           systemMode: systemModeInput ? systemModeInput.value : 'idle',
           fanMode: fanModeInput ? fanModeInput.value : 'auto',
+          fanSpeed: fanModeInput ? fanModeInput.value : 'auto',
           target: targetInput ? Number(targetInput.value) : null,
           scheduling: schedulingInput ? schedulingInput.checked : false,
         };
