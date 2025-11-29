@@ -9,6 +9,7 @@ suitable for serving with a `Content-Encoding` header.
 from __future__ import annotations
 
 import gzip
+import subprocess
 from pathlib import Path
 from typing import Iterable, Tuple
 
@@ -37,8 +38,38 @@ def _format_bytes(data: Iterable[int]) -> str:
     return "\n".join(formatted_lines)
 
 
+def _get_short_commit_id() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=INDEX_PATH.parent,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        commit_id = result.stdout.strip()
+        if not commit_id:
+            return "unknown"
+
+        dirty_check = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=INDEX_PATH.parent,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if dirty_check.stdout.strip():
+            commit_id = f"{commit_id}-dirty"
+
+        return commit_id
+    except Exception:
+        return "unknown"
+
+
 def main() -> None:
-    html = INDEX_PATH.read_bytes()
+    html_text = INDEX_PATH.read_text()
+    commit_id = _get_short_commit_id()
+    html = html_text.replace("__VERSION__", commit_id).encode()
 
     options: list[Tuple[str, bytes]] = []
     brotli_result = _compress_with_brotli(html)
