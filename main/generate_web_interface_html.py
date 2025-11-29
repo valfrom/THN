@@ -50,17 +50,6 @@ def _get_short_commit_id() -> str:
         commit_id = result.stdout.strip()
         if not commit_id:
             return "unknown"
-
-        dirty_check = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=INDEX_PATH.parent,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        if dirty_check.stdout.strip():
-            commit_id = f"{commit_id}-dirty"
-
         return commit_id
     except Exception:
         return "unknown"
