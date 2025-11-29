@@ -888,6 +888,8 @@
       const simplePumpStatus = document.getElementById('simplePumpStatus');
       const simplePumpStatusText = document.getElementById('simplePumpStatusText');
       const simplePumpTemp = document.getElementById('simplePumpTemp');
+      const SIMPLE_TEMP_APPLY_DELAY_MS = 3000;
+      let simpleTempUpdateTimeout = null;
       let simplePreferredMode = 'cooling';
       let latestSimpleFanSpeed = 'off';
       let latestSimplePumpActive = false;
@@ -2823,6 +2825,10 @@
       }
 
       async function sendSimpleConfig() {
+        if (simpleTempUpdateTimeout) {
+          clearTimeout(simpleTempUpdateTimeout);
+          simpleTempUpdateTimeout = null;
+        }
         setSimpleStatus('Updating…');
         try {
           const response = await fetch('/api/config', {
@@ -2855,7 +2861,17 @@
           schedulingInput.checked = false;
         }
         updateSimpleScheduleVisual();
-        sendSimpleConfig();
+        if (simpleTempValue) {
+          simpleTempValue.textContent = targetInput.value;
+        }
+        if (simpleTempUpdateTimeout) {
+          clearTimeout(simpleTempUpdateTimeout);
+        }
+        setSimpleStatus('Applying temperature…', '#333');
+        simpleTempUpdateTimeout = setTimeout(() => {
+          simpleTempUpdateTimeout = null;
+          sendSimpleConfig();
+        }, SIMPLE_TEMP_APPLY_DELAY_MS);
       }
 
       if (scheduleIgnoreButton && scheduleIgnoreSelect) {
