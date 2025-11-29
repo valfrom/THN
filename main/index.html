@@ -274,6 +274,10 @@
         justify-content: space-between;
         flex-wrap: wrap;
       }
+      .simple-row.power-row {
+        align-items: center;
+        gap: 1rem;
+      }
       .simple-power-button {
         width: 72px;
         height: 72px;
@@ -305,6 +309,78 @@
       .simple-mode-label {
         font-weight: 700;
         color: #0f172a;
+      }
+      .simple-equipment-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-left: auto;
+        flex: 1;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+      }
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.6rem;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        font-weight: 700;
+        color: #0f172a;
+        min-width: 120px;
+      }
+      .status-chip .status-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        font-size: 1.1rem;
+      }
+      @keyframes fan-spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .fan-speed-off {
+        color: #94a3b8;
+      }
+      .fan-speed-auto {
+        color: #0ea5e9;
+        animation: fan-spin 2s linear infinite;
+      }
+      .fan-speed-low {
+        color: #0ea5e9;
+        animation: fan-spin 2.2s linear infinite;
+      }
+      .fan-speed-medium {
+        color: #0284c7;
+        animation: fan-spin 1.6s linear infinite;
+      }
+      .fan-speed-high {
+        color: #0369a1;
+        animation: fan-spin 1.05s linear infinite;
+      }
+      @keyframes pump-bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-2px) scale(1.05);
+        }
+      }
+      .pump-idle {
+        color: #94a3b8;
+      }
+      .pump-active {
+        color: #06b6d4;
+        animation: pump-bounce 0.9s ease-in-out infinite;
       }
       .simple-mode-buttons,
       .simple-fan-bars {
@@ -446,9 +522,19 @@
 
     <div id="simpleTab" class="tab-panel active">
       <section class="simple-card">
-        <div class="simple-row">
+        <div class="simple-row power-row">
           <button type="button" id="simplePowerButton" class="simple-power-button off">OFF</button>
           <div class="simple-mode-label" id="simpleModeLabel">Idle</div>
+          <div class="simple-equipment-status">
+            <div class="status-chip" id="simpleFanStatus">
+              <span class="status-icon fan-speed-off" id="simpleFanIcon" aria-hidden="true">🌀</span>
+              <span class="status-text" id="simpleFanText">Fan: -</span>
+            </div>
+            <div class="status-chip" id="simplePumpStatus">
+              <span class="status-icon pump-idle" id="simplePumpIcon" aria-hidden="true">💧</span>
+              <span class="status-text" id="simplePumpText">Pump: -</span>
+            </div>
+          </div>
         </div>
         <div class="simple-row">
           <div class="simple-mode-buttons">
@@ -717,6 +803,7 @@
         high: 'High',
       };
       const fanSpeedLabels = {
+        auto: 'Auto',
         off: 'Off',
         low: 'Low',
         medium: 'Medium',
@@ -737,6 +824,10 @@
       const simpleFanBars = Array.from(document.querySelectorAll('[data-simple-fan]'));
       const simpleTempValue = document.getElementById('simpleTargetValue');
       const simpleModeLabel = document.getElementById('simpleModeLabel');
+      const simpleFanIcon = document.getElementById('simpleFanIcon');
+      const simpleFanText = document.getElementById('simpleFanText');
+      const simplePumpIcon = document.getElementById('simplePumpIcon');
+      const simplePumpText = document.getElementById('simplePumpText');
       const simpleScheduleToggle = document.getElementById('simpleScheduleToggle');
       const simpleTempUp = document.getElementById('simpleTempUp');
       const simpleTempDown = document.getElementById('simpleTempDown');
@@ -2246,8 +2337,10 @@
       function updateSimplePanel(data = {}) {
         const systemModeValue = typeof data.systemMode === 'string' ? data.systemMode : 'idle';
         const fanModeValue = typeof data.fanMode === 'string' ? data.fanMode : 'auto';
+        const fanSpeedValue = typeof data.fanSpeed === 'string' ? data.fanSpeed : null;
         const targetValue = Number(data.target);
         const schedulingEnabled = Boolean(data.scheduling);
+        const pumpRunning = data.compressor === true;
         const isIdle = systemModeValue === 'idle';
         if (!isIdle && ['cooling', 'heating', 'fan'].includes(systemModeValue)) {
           simplePreferredMode = systemModeValue;
@@ -2306,6 +2399,40 @@
           button.disabled = disabled;
           button.classList.toggle('active', speed === activeFanMode);
         });
+
+        const normalizedFanSpeed = ['off', 'low', 'medium', 'high', 'auto'].includes(
+          fanSpeedValue,
+        )
+          ? fanSpeedValue
+          : activeFanMode;
+        if (simpleFanText) {
+          simpleFanText.textContent = `Fan: ${fanSpeedLabels[normalizedFanSpeed] || '-'}`;
+        }
+        if (simpleFanIcon) {
+          simpleFanIcon.classList.remove(
+            'fan-speed-off',
+            'fan-speed-low',
+            'fan-speed-medium',
+            'fan-speed-high',
+            'fan-speed-auto',
+          );
+          const fanSpeedClass = `fan-speed-${normalizedFanSpeed}`;
+          simpleFanIcon.classList.add(
+            ['fan-speed-off', 'fan-speed-low', 'fan-speed-medium', 'fan-speed-high', 'fan-speed-auto'].includes(
+              fanSpeedClass,
+            )
+              ? fanSpeedClass
+              : 'fan-speed-off',
+          );
+        }
+
+        if (simplePumpText) {
+          simplePumpText.textContent = pumpRunning ? 'Pump: Running' : 'Pump: Idle';
+        }
+        if (simplePumpIcon) {
+          simplePumpIcon.classList.remove('pump-idle', 'pump-active');
+          simplePumpIcon.classList.add(pumpRunning ? 'pump-active' : 'pump-idle');
+        }
 
         if (simpleTempValue) {
           simpleTempValue.textContent = Number.isFinite(targetValue)
@@ -2482,6 +2609,8 @@
         updateSimplePanel({
           systemMode: data.systemMode,
           fanMode: data.fanMode,
+          fanSpeed: data.fanSpeed,
+          compressor: data.compressor,
           target: data.target,
           scheduling: data.scheduling,
         });
