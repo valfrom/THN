@@ -2845,10 +2845,32 @@
         }
       }
 
+      async function disableScheduleImmediately(originalTargetValue) {
+        const extraParams = {};
+        if (typeof originalTargetValue === 'string' && originalTargetValue.length > 0) {
+          extraParams.target = originalTargetValue;
+        }
+        setSimpleStatus('Disabling schedule…');
+        try {
+          const response = await fetch('/api/config', {
+            method: 'POST',
+            body: buildConfigPayload(extraParams),
+          });
+          if (!response.ok) {
+            throw new Error('Failed to disable schedule');
+          }
+          setSimpleStatus('Schedule disabled. Applying temperature…', '#333');
+        } catch (err) {
+          setSimpleStatus(err?.message || 'Failed to disable schedule.', '#b00020');
+        }
+      }
+
       function adjustSimpleTemperature(delta) {
         if (!targetInput) {
           return;
         }
+        const previousTargetValue = targetInput.value;
+        const scheduleWasEnabled = schedulingInput ? schedulingInput.checked : false;
         const currentValue = Number(targetInput.value);
         const base = Number.isFinite(currentValue)
           ? currentValue
@@ -2861,6 +2883,9 @@
           schedulingInput.checked = false;
         }
         updateSimpleScheduleVisual();
+        if (scheduleWasEnabled) {
+          disableScheduleImmediately(previousTargetValue);
+        }
         if (simpleTempValue) {
           simpleTempValue.textContent = targetInput.value;
         }
