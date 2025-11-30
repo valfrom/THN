@@ -2122,24 +2122,48 @@
 
         const baselineWh = Number(data?.rangeStartEnergyWh);
         const endWh = Number(data?.rangeEndEnergyWh);
+        const lifetimeWh = Number(data?.totalEnergyWh);
         let totalWh =
-          Number.isFinite(baselineWh) && Number.isFinite(endWh) ? endWh - baselineWh : NaN;
+          Number.isFinite(baselineWh) && Number.isFinite(endWh)
+            ? endWh - baselineWh
+            : Number.isFinite(lifetimeWh)
+              ? lifetimeWh
+              : NaN;
         if (Number.isFinite(totalWh) && totalWh < 0) {
           totalWh = 0;
         }
         const filteredSpanMs = Number(data?.filteredSpanMs);
         const filteredCount = Number(data?.filteredCount) || entries.length;
 
-        if (!Number.isFinite(totalWh) || filteredCount < 2) {
+        const coveredBuckets = Array.isArray(chartSummary?.buckets)
+          ? chartSummary.buckets.filter((bucket) => {
+              if (chartSummary.type === 'day') {
+                return Number(bucket?.count) > 0 && Number(bucket?.averageWatts) > 0;
+              }
+              return Number(bucket?.totalWh) > 0;
+            }).length
+          : 0;
+
+        if (!Number.isFinite(totalWh) || filteredCount < 1) {
           powerSummaryTotal.textContent = '-';
           powerSummaryAverage.textContent = '-';
         } else {
           powerSummaryTotal.textContent = formatEnergyWh(totalWh);
-          const days = filteredSpanMs > 0 ? filteredSpanMs / (24 * 60 * 60 * 1000) : 0;
-          if (days > 0.05) {
-            powerSummaryAverage.textContent = `${formatEnergyWh(totalWh / days)} / day`;
+          let averageDivisor = coveredBuckets;
+          let averageLabel = '/ day';
+          if (chartSummary?.type === 'day') {
+            averageLabel = '/ active hr';
+          } else if (chartSummary?.type === 'monthly-usage') {
+            averageLabel = '/ active month';
+          }
+          if (!Number.isFinite(averageDivisor) || averageDivisor <= 0) {
+            const days = filteredSpanMs > 0 ? filteredSpanMs / (24 * 60 * 60 * 1000) : 0;
+            averageDivisor = days > 0 ? days : 0;
+          }
+          if (averageDivisor > 0.0001) {
+            powerSummaryAverage.textContent = `${formatEnergyWh(totalWh / averageDivisor)} ${averageLabel}`;
           } else {
-            powerSummaryAverage.textContent = `${formatEnergyWh(totalWh)} / day`;
+            powerSummaryAverage.textContent = formatEnergyWh(totalWh);
           }
         }
 
