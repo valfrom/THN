@@ -246,8 +246,8 @@ void HVACController::updateFanState() {
     heatingFanSpeedChangeScheduled_ = false;
     heatingFanSpeedChangeEffectiveAt_ = 0;
     lastHeatingAutoFanSpeed_ = FanSpeed::kOff;
-    fan_.setRequestedSpeed(FanSpeed::kOff);
-    fan_.enforceMinimumSpeed(FanSpeed::kOff);
+    fan_.setRequestedSpeed(FanSpeed::kLow);
+    fan_.enforceMinimumSpeed(FanSpeed::kLow);
     fan_.update();
     return;
   }
